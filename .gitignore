@@ -1,1 +1,3 @@
 backend/data/chroma_db/ 
+backend/__pycache__/ 
+backend/data/legal_assistant.db 
