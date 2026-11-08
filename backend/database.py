@@ -82,19 +82,35 @@ def log_audit_trail(user_id, query_text, retrieved_sections, evidence_status="Ac
         print(f"[!] Audit log error: {e}")
 
 
-def get_audit_trail(limit=50):
-    """সর্বশেষ অডিট ট্রেইল রেকর্ডগুলো রিটার্ন করে।"""
+def get_audit_trail(user_id=None, role="citizen", limit=50):
+    """
+    ব্যবহারকারীর রোল অনুযায়ী অডিট ট্রেইল রেকর্ড রিটার্ন করে।
+    সাধারণ ব্যবহারকারী শুধু নিজের রেকর্ড দেখবে, অ্যাডমিন সবার রেকর্ড দেখতে পারবে।
+    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT q.id, COALESCE(u.full_name, 'Citizen') as user_name, 
-                   q.query_text, q.retrieved_sections, q.evidence_status, q.created_at
-            FROM query_logs q
-            LEFT JOIN users u ON q.user_id = u.id
-            ORDER BY q.id DESC
-            LIMIT ?
-        """, (limit,))
+        
+        if role == "admin":
+            cursor.execute("""
+                SELECT q.id, COALESCE(u.full_name, 'Citizen') as user_name, 
+                       q.query_text, q.retrieved_sections, q.evidence_status, q.created_at
+                FROM query_logs q
+                LEFT JOIN users u ON q.user_id = u.id
+                ORDER BY q.id DESC
+                LIMIT ?
+            """, (limit,))
+        else:
+            cursor.execute("""
+                SELECT q.id, COALESCE(u.full_name, 'Citizen') as user_name, 
+                       q.query_text, q.retrieved_sections, q.evidence_status, q.created_at
+                FROM query_logs q
+                LEFT JOIN users u ON q.user_id = u.id
+                WHERE q.user_id = ?
+                ORDER BY q.id DESC
+                LIMIT ?
+            """, (user_id, limit))
+            
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]

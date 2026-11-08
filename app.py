@@ -105,14 +105,19 @@ st.markdown(
 # Initialize Relational Database
 init_db()
 
+# State Management
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "user" not in st.session_state:
     st.session_state["user"] = None
+if "auth_mode" not in st.session_state:
+    st.session_state["auth_mode"] = "লগইন (Login)"
+if "reg_success_msg" not in st.session_state:
+    st.session_state["reg_success_msg"] = None
 
 
-# Vector Store Loading with caching
-@st.cache_resource(show_spinner="লোকাল ভেক্টর ডাটাবেজ প্রস্তুত হচ্ছে...")
+# Vector Store Loading with caching (Lazy loaded)
+@st.cache_resource(show_spinner=False)
 def load_vector_db():
     try:
         import importlib
@@ -123,7 +128,19 @@ def load_vector_db():
         return None
 
 
-collection = load_vector_db()
+# Helper to extract user ID cleanly from session dict or tuple
+def get_current_user_id():
+    user = st.session_state.get("user")
+    if isinstance(user, dict):
+        return user.get("id") or user.get("user_id")
+    return None
+
+def get_current_user_role():
+    user = st.session_state.get("user")
+    if isinstance(user, dict):
+        return user.get("role", "citizen")
+    return "citizen"
+
 
 # SIDEBAR: Authentication & Controls
 with st.sidebar:
@@ -133,33 +150,54 @@ with st.sidebar:
     st.markdown("---")
 
     if not st.session_state["authenticated"]:
+        modes = ["লগইন (Login)", "নিবন্ধন (Register)"]
+        default_idx = modes.index(st.session_state["auth_mode"]) if st.session_state["auth_mode"] in modes else 0
+        
         auth_mode = st.radio(
-            "প্রবেশ করুন / একাউন্ট খুলুন", ["লগইন (Login)", "নিবন্ধন (Register)"]
+            "প্রবেশ করুন / একাউন্ট খুলুন", 
+            modes, 
+            index=default_idx,
+            key="auth_radio_select"
         )
+        st.session_state["auth_mode"] = auth_mode
+
+        if st.session_state["reg_success_msg"]:
+            st.success(st.session_state["reg_success_msg"])
+            st.session_state["reg_success_msg"] = None
 
         if auth_mode == "লগইন (Login)":
             with st.form("login_form"):
                 st.markdown("##### 🔑 লগইন")
-                email_input = st.text_input("ইমেইল (Email)")
+                email_input = st.text_input("ইমেইল (Email)").strip()
                 password_input = st.text_input("পাসওয়ার্ড", type="password")
                 submit = st.form_submit_button("লগইন", use_container_width=True)
 
                 if submit:
-                    res = authenticate_user(email_input, password_input)
-                    if res.get("status") == "success":
-                        st.session_state["authenticated"] = True
-                        st.session_state["user"] = res.get("user")
-                        st.success(f"স্বাগতম, {res.get('user', {}).get('full_name')}!")
-                        st.rerun()
+                    if not email_input or not password_input:
+                        st.error("অনুগ্রহ করে ইমেইল এবং পাসওয়ার্ড উভয়ই পূরণ করুন।")
                     else:
-                        st.error(res.get("message", "লগইন ব্যর্থ হয়েছে।"))
+                        res = authenticate_user(email_input, password_input)
+                        if isinstance(res, dict) and res.get("status") == "success":
+                            st.session_state["authenticated"] = True
+                            st.session_state["user"] = res.get("user")
+                            st.rerun()
+                        elif isinstance(res, tuple) and res[0] is True:
+                            st.session_state["authenticated"] = True
+                            st.session_state["user"] = res[1]
+                            st.rerun()
+                        else:
+                            err_msg = res.get("message") if isinstance(res, dict) else (res[1] if isinstance(res, tuple) else "ইমেইল বা পাসওয়ার্ড সঠিক নয়।")
+                            st.error(err_msg)
         else:
             with st.form("register_form"):
                 st.markdown("##### 📝 নতুন একাউন্ট")
-                r_name = st.text_input("পুরো নাম")
-                r_email = st.text_input("ইমেইল")
+                r_name = st.text_input("পুরো নাম").strip()
+                r_email = st.text_input("ইমেইল").strip()
                 r_password = st.text_input(
                     "পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)", type="password"
+                )
+                r_password_confirm = st.text_input(
+                    "পাসওয়ার্ড নিশ্চিত করুন (Confirm Password)", type="password"
                 )
                 r_role = st.selectbox("আপনার ভূমিকা (Role)", ["citizen", "lawyer", "student"])
                 r_submit = st.form_submit_button(
@@ -167,19 +205,44 @@ with st.sidebar:
                 )
 
                 if r_submit:
-                    val_err = validate_user_input(r_name, r_email, r_password)
-                    if val_err:
-                        st.error(val_err)
+                    if r_password != r_password_confirm:
+                        st.error("উভয় পাসওয়ার্ড হুবহু এক হতে হবে!")
                     else:
-                        res = register_user(r_name, r_email, r_password, r_role)
-                        if res.get("status") == "success":
-                            st.success("নিবন্ধন সফল হয়েছে! অনুগ্রহ করে লগইন ট্যাবে গিয়ে লগইন করুন।")
+                        val_res = validate_user_input(r_name, r_email, r_password)
+                        is_valid = True
+                        val_msg = ""
+                        if isinstance(val_res, tuple):
+                            is_valid, val_msg = val_res[0], val_res[1]
+                        elif isinstance(val_res, str) and val_res:
+                            is_valid = False
+                            val_msg = val_res
+
+                        if not is_valid:
+                            st.error(val_msg)
                         else:
-                            st.error(res.get("message", "নিবন্ধন ব্যর্থ হয়েছে।"))
+                            res = register_user(r_name, r_email, r_password, r_role)
+                            is_registered = False
+                            err_or_success = ""
+                            
+                            if isinstance(res, dict):
+                                if res.get("status") == "success":
+                                    is_registered = True
+                                else:
+                                    err_or_success = res.get("message", "নিবন্ধন ব্যর্থ হয়েছে।")
+                            elif isinstance(res, tuple):
+                                is_registered = res[0]
+                                err_or_success = res[1]
+
+                            if is_registered:
+                                st.session_state["reg_success_msg"] = "✅ নিবন্ধন সফল হয়েছে! অনুগ্রহ করে লগইন করুন।"
+                                st.session_state["auth_mode"] = "লগইন (Login)"
+                                st.rerun()
+                            else:
+                                st.error(err_or_success)
     else:
         st.markdown(f"**স্বাগতম,** `{st.session_state['user'].get('full_name')}`")
         st.caption(f"ইমেইল: {st.session_state['user'].get('email')}")
-        st.caption(f"রোল: {str(st.session_state['user'].get('role', 'citizen')).upper()}")
+        st.caption(f"রোল: {str(get_current_user_role()).upper()}")
 
         st.markdown("---")
         st.markdown("##### ⚙️ অনুসন্ধান সেটিংস")
@@ -188,6 +251,7 @@ with st.sidebar:
         if st.button("🚪 লগআউট", use_container_width=True):
             st.session_state["authenticated"] = False
             st.session_state["user"] = None
+            st.session_state["auth_mode"] = "লগইন (Login)"
             st.rerun()
 
     st.markdown("---")
@@ -211,26 +275,22 @@ st.markdown(
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(
-        "<div class='metric-box'><div class='metric-value'>৩৭৫টি</div><div"
-        " class='metric-label'>মোট সংকলিত ধারা</div></div>",
+        "<div class='metric-box'><div class='metric-value'>৩৭৫টি</div><div class='metric-label'>মোট সংকলিত ধারা</div></div>",
         unsafe_allow_html=True,
     )
 with c2:
     st.markdown(
-        "<div class='metric-box'><div class='metric-value'>১০০%</div><div"
-        " class='metric-label'>স্ট্যাটিউট গ্রাউন্ডেড</div></div>",
+        "<div class='metric-box'><div class='metric-value'>১০০%</div><div class='metric-label'>স্ট্যাটিউট গ্রাউন্ডেড</div></div>",
         unsafe_allow_html=True,
     )
 with c3:
     st.markdown(
-        "<div class='metric-box'><div class='metric-value'>সংশোধিত ২০২৬</div><div"
-        " class='metric-label'>লিগ্যাল স্ট্যাটাস ট্র্যাকিং</div></div>",
+        "<div class='metric-box'><div class='metric-value'>সংশোধিত ২০২৬</div><div class='metric-label'>লিগ্যাল স্ট্যাটাস ট্র্যাকিং</div></div>",
         unsafe_allow_html=True,
     )
 with c4:
     st.markdown(
-        "<div class='metric-box'><div class='metric-value'>SQLite Audit</div><div"
-        " class='metric-label'>ফুল অডিট লগিং</div></div>",
+        "<div class='metric-box'><div class='metric-value'>User-Isolated</div><div class='metric-label'>নিরাপদ অডিট লগিং</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -239,15 +299,14 @@ st.markdown("<br>", unsafe_allow_html=True)
 # Guard: Check authentication
 if not st.session_state["authenticated"]:
     st.info(
-        "💡 সিস্টেমের অনুসন্ধান সুবিধা ও অডিট ট্রেইল দেখতে অনুগ্রহ করে বামপাশের"
-        " সাইডবার থেকে লগইন করুন।"
+        "💡 সিস্টেমের অনুসন্ধান সুবিধা ও ব্যক্তিগত অডিট ট্রেইল দেখতে অনুগ্রহ করে বামপাশের সাইডবার থেকে লগইন করুন।"
     )
     st.stop()
 
 # TABS
 tab_search, tab_audit = st.tabs([
     "🔍 আইনি অনুসন্ধান (Dynamic AI Search)",
-    "📊 ডেটাবেজ হিস্ট্রি (Audit Trail)",
+    "📊 আমার ডেটাবেজ হিস্ট্রি (Audit Trail)",
 ])
 
 with tab_search:
@@ -265,6 +324,8 @@ with tab_search:
 
     if clear_clicked:
         st.rerun()
+
+    current_uid = get_current_user_id()
 
     if search_clicked and query_input.strip():
         q = query_input.strip()
@@ -285,12 +346,15 @@ with tab_search:
                     " কাল্পনিক বা হ্যালুসিনেটেড তথ্য প্রদান করবে না।"
                 )
                 log_audit_trail(
-                    st.session_state["user"].get("id"),
+                    current_uid,
                     q,
                     f"ধারা {raw_n} [Not Found]",
                     "Rejected",
                 )
                 st.stop()
+
+        # Lazy load vector collection only when query runs
+        collection = load_vector_db()
 
         if collection is not None:
             chosen_k = top_k if 'top_k' in locals() else 3
@@ -352,7 +416,7 @@ with tab_search:
 
                         if i == 0:
                             log_audit_trail(
-                                st.session_state["user"].get("id"),
+                                current_uid,
                                 q,
                                 f"ধারা {sec_num}: {sec_title}",
                                 status,
@@ -361,10 +425,17 @@ with tab_search:
                 st.warning("কোনো তথ্য পাওয়া যায়নি।")
 
 with tab_audit:
-    st.markdown("#### 📊 ডেটাবেজ অডিট ট্রেইল (Audit Logs)")
-    st.caption("প্রতিটি আইনি প্রশ্ন, সংশ্লিষ্ট ধারা এবং প্রোভেন্যান্স রিয়েল-টাইম SQLite ডেটাবেজে সংরক্ষিত হচ্ছে।")
+    current_uid = get_current_user_id()
+    current_role = get_current_user_role()
 
-    logs = get_audit_trail(limit=50)
+    if current_role == "admin":
+        st.markdown("#### 📊 সার্বজনীন সিস্টেম অডিট ট্রেইল (Admin Audit View)")
+        st.caption("অ্যাডমিন হিসেবে সিস্টেমের সমস্ত ব্যবহারকারীর আইনি অনুসন্ধানের হিস্ট্রি প্রদর্শিত হচ্ছে।")
+    else:
+        st.markdown("#### 📊 আমার অনুসন্ধানের রেকর্ড (Personal Audit History)")
+        st.caption("আপনার একাউন্ট থেকে সম্পন্ন করা সমস্ত আইনি অনুসন্ধান ও সংশ্লিষ্ট ধারার রেকর্ড এখানে সংরক্ষিত রয়েছে।")
+
+    logs = get_audit_trail(user_id=current_uid, role=current_role, limit=50)
     if logs:
         df = pd.DataFrame(logs)
         df.columns = [
@@ -380,11 +451,11 @@ with tab_audit:
         # CSV Export
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button(
-            label="📥 অডিট হিস্ট্রি CSV ডাউনলোড করুন",
+            label="📥 আমার অডিট হিস্ট্রি CSV ডাউনলোড করুন",
             data=csv,
-            file_name="legal_assistant_audit_logs.csv",
+            file_name=f"audit_logs_{st.session_state['user'].get('email', 'user')}.csv",
             mime="text/csv",
             use_container_width=True,
         )
     else:
-        st.info("এখনও কোনো অডিট লগ রেকর্ড তৈরি হয়নি।")
+        st.info("আপনার একাউন্টে এখনও কোনো অনুসন্ধানের রেকর্ড সংরক্ষিত হয়নি।")
