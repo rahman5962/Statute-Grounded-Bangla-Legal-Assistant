@@ -4,3 +4,6 @@ bcrypt>=4.1.2
 sentence-transformers>=2.6.1
 pandas>=2.2.0
 requests>=2.31.0
+
+fastapi
+uvicorn
