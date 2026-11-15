@@ -1,0 +1,15 @@
+{
+  "python.defaultInterpreterPath": "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3",
+  "python.analysis.extraPaths": ["./backend"],
+  "python.autoComplete.extraPaths": ["./backend"],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingModuleSource": "none"
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/backend/data/chroma_db": true,
+    "**/*.bin": true,
+    "**/*.sqlite3": true
+  }
+}

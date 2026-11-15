@@ -1,7 +1,12 @@
-"""Statute-Grounded Vector Store & Hybrid Metadata Search Engine.
+"""Multi-Domain Statute-Grounded Vector Store & Hybrid Metadata Search Engine.
 
-Bangladesh Labour Act, 2006 (375 Sections: Active, Amended, Repealed).
-Author: Prarthona Biswas Puja (241-35-187)
+Domains:
+  1. Bangladesh Labour Act, 2006 (375 Sections)
+  2. Consumer Rights Protection Act, 2009 (82 Sections)
+  3. Cyber Protection Act, 2026 (51 Sections)
+
+Unified Collection: bd_legal_multi_domain_2026 (Total: 508 Sections)
+Author: Prarthona Biswas Puja (241-35-187) / Sazim Rahman
 Module: ChromaDB Vector Indexing & Semantic Retrieval (FR-02 & FR-03)
 """
 
@@ -10,120 +15,165 @@ from pathlib import Path
 import chromadb
 from chromadb.utils import embedding_functions
 
-# প্রজেক্টের ফাইল পাথ কনফিগারেশন
+# প্রজেক্ট ফাইল পাথ কনফিগারেশন
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-CHUNKS_FILE = (
-    PROJECT_ROOT / "backend" / "data" / "processed" / "labour_act_chunks.json"
-)
+PROCESSED_DIR = PROJECT_ROOT / "backend" / "data" / "processed"
+
+LABOUR_CHUNKS_FILE = PROCESSED_DIR / "labour_act_chunks.json"
+NEW_DOMAINS_FILE = PROCESSED_DIR / "new_domains_chunks.json"
 CHROMA_DB_DIR = PROJECT_ROOT / "backend" / "data" / "chroma_db"
 
-COLLECTION_NAME = "bd_labour_act_2006"
+COLLECTION_NAME = "bd_legal_multi_domain_2026"
 EMBEDDING_MODEL_NAME = (
     "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
 
 
 def get_vector_collection():
-  """ChromaDB ক্লায়েন্ট এবং মাল্টিলিঙ্গুয়াল বাংলা এম্বেডিং ফাংশন ইনিশিয়ালাইজ করে।"""
-  CHROMA_DB_DIR.mkdir(parents=True, exist_ok=True)
-  client = chromadb.PersistentClient(path=str(CHROMA_DB_DIR))
+    """ChromaDB ক্লায়েন্ট এবং মাল্টিলিঙ্গুয়াল বাংলা এম্বেডিং ফাংশন ইনিশিয়ালাইজ করে।"""
+    CHROMA_DB_DIR.mkdir(parents=True, exist_ok=True)
+    client = chromadb.PersistentClient(path=str(CHROMA_DB_DIR))
 
-  embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-      model_name=EMBEDDING_MODEL_NAME
-  )
+    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name=EMBEDDING_MODEL_NAME
+    )
 
-  collection = client.get_or_create_collection(
-      name=COLLECTION_NAME,
-      embedding_function=embedding_fn,
-      metadata={"hnsw:space": "cosine"},
-  )
-  return collection
+    collection = client.get_or_create_collection(
+        name=COLLECTION_NAME,
+        embedding_function=embedding_fn,
+        metadata={"hnsw:space": "cosine"},
+    )
+    return collection
+
+
+def load_all_chunks():
+    """৩টি আইনি ডোমেইনের চাঙ্ক ফাইলগুলো লোড করে মেটাডাটা স্ট্যান্ডার্ডাইজ করে।"""
+    all_chunks = []
+
+    # ১. বাংলাদেশ শ্রম আইন, ২০০৬ (৩৭৫টি ধারা)
+    if not LABOUR_CHUNKS_FILE.exists():
+        raise FileNotFoundError(f"[!] শ্রম আইনের চাঙ্ক ফাইল পাওয়া যায়নি: {LABOUR_CHUNKS_FILE}")
+
+    with open(LABOUR_CHUNKS_FILE, "r", encoding="utf-8") as f:
+        labour_chunks = json.load(f)
+        for c in labour_chunks:
+            if not c.get("domain"):
+                c["domain"] = "labour_law"
+            if not c.get("domain_bn"):
+                c["domain_bn"] = "শ্রম আইন, ২০০৬"
+        all_chunks.extend(labour_chunks)
+        print(f"[+] শ্রম আইন, ২০০৬ লোড হয়েছে: {len(labour_chunks)}টি ধারা")
+
+    # ২. নতুন ডোমেইনসমূহ: ভোক্তা অধিকার সংরক্ষণ আইন (৮২টি ধারা) + সাইবার সুরক্ষা আইন (৫১টি ধারা)
+    if not NEW_DOMAINS_FILE.exists():
+        raise FileNotFoundError(f"[!] নতুন ডোমেইনের চাঙ্ক ফাইল পাওয়া যায়নি: {NEW_DOMAINS_FILE}")
+
+    with open(NEW_DOMAINS_FILE, "r", encoding="utf-8") as f:
+        new_chunks = json.load(f)
+        for c in new_chunks:
+            if not c.get("domain"):
+                c["domain"] = "general"
+            if not c.get("domain_bn"):
+                c["domain_bn"] = "সাধারণ আইন"
+        all_chunks.extend(new_chunks)
+        print(f"[+] নতুন ডোমেইনসমূহ লোড হয়েছে: {len(new_chunks)}টি ধারা")
+
+    print(f"[*] সর্বমোট লোডকৃত ধারা: {len(all_chunks)}টি")
+    return all_chunks
 
 
 def build_vector_store():
-  """৩৭৫টি আইনি ধারা মেটাডাটাসহ ChromaDB-তে ইনডেক্স করে।"""
-  if not CHUNKS_FILE.exists():
-    raise FileNotFoundError(f"[!] চাংক ফাইল পাওয়া যায়নি: {CHUNKS_FILE}")
+    """৩টি আইনি ডোমেইনের সর্বমোট ৫০৮টি ধারা মেটাডাটাসহ ChromaDB-তে ইনডেক্স করে।"""
+    all_chunks = load_all_chunks()
 
-  with open(CHUNKS_FILE, "r", encoding="utf-8") as f:
-    chunks = json.load(f)
+    collection = get_vector_collection()
+    print(f"[*] এম্বেডিং মডেল লোড হচ্ছে: {EMBEDDING_MODEL_NAME} ...")
 
-  print(f"[*] মোট {len(chunks)} টি ধারা লোড হয়েছে।")
-  print(f"[*] এম্বেডিং মডেল লোড হচ্ছে: {EMBEDDING_MODEL_NAME} ...")
+    ids = []
+    documents = []
+    metadatas = []
 
-  collection = get_vector_collection()
+    for idx, chunk in enumerate(all_chunks):
+        domain = str(chunk.get("domain") or "labour_law")
+        chunk_id = str(chunk.get("id") or f"sec_{idx}")
+        # f"{domain}_{chunk_id}_{idx}" ফরম্যাটে স্বতন্ত্র আইডি
+        unique_id = f"{domain}_{chunk_id}_{idx}"
 
-  ids = []
-  documents = []
-  metadatas = []
+        content = str(chunk.get("content") or "").strip()
+        if not content:
+            continue
 
-  for idx, chunk in enumerate(chunks):
-    # ডুপ্লিকেট আইডি এড়াতে সেকশন নম্বর ও ইনডেক্সের সমন্বয়
-    sec_id = f"{chunk['id']}_{idx}"
-    ids.append(sec_id)
-    documents.append(chunk["content"])
+        ids.append(unique_id)
+        documents.append(content)
 
-    metadatas.append({
-        "act_name": str(chunk.get("act_name", "")),
-        "chapter": str(chunk.get("chapter", "")),
-        "section_number": str(chunk.get("section_number", "")),
-        "section_title": str(chunk.get("section_title", "")),
-        "legal_status": str(chunk.get("legal_status", "")),
-        "amendment_provenance": str(chunk.get("amendment_provenance", "")),
-    })
+        metadata = {
+            "domain": domain,
+            "domain_bn": str(chunk.get("domain_bn") or ""),
+            "act_name": str(chunk.get("act_name") or ""),
+            "chapter": str(chunk.get("chapter") or ""),
+            "section_number": str(chunk.get("section_number") or ""),
+            "section_title": str(chunk.get("section_title") or ""),
+            "legal_status": str(chunk.get("legal_status") or "সক্রিয় (Active)"),
+            "amendment_provenance": str(chunk.get("amendment_provenance") or "মূল আইন"),
+        }
+        metadatas.append(metadata)
 
-  # ব্যাচ আকারে ডেটাবেজে ইনসার্ট/আপসার্ট করা
-  BATCH_SIZE = 100
-  for i in range(0, len(ids), BATCH_SIZE):
-    collection.upsert(
-        ids=ids[i : i + BATCH_SIZE],
-        documents=documents[i : i + BATCH_SIZE],
-        metadatas=metadatas[i : i + BATCH_SIZE],
-    )
-    print(
-        f"  -> ইনডেক্সিং সম্পন্ন: {min(i + BATCH_SIZE, len(ids))}/{len(ids)}"
-    )
+    # ব্যাচ আকারে (১০০টি করে) আপসার্ট করা
+    BATCH_SIZE = 100
+    for i in range(0, len(ids), BATCH_SIZE):
+        batch_ids = ids[i : i + BATCH_SIZE]
+        batch_docs = documents[i : i + BATCH_SIZE]
+        batch_metas = metadatas[i : i + BATCH_SIZE]
 
-  print("\n" + "=" * 65)
-  print("✅ ChromaDB ভেক্টর ডেটাবেজ সফলভাবে তৈরি ও সংরক্ষিত হয়েছে!")
-  print(f"📁 ডেটাবেজ পাথ: {CHROMA_DB_DIR}")
-  print(f"📊 মোট ইনডেক্সকৃত রেকর্ড: {collection.count()}")
-  print("=" * 65)
-  return collection
+        collection.upsert(
+            ids=batch_ids,
+            documents=batch_docs,
+            metadatas=batch_metas,
+        )
+        print(f"  -> ইনডেক্সিং সম্পন্ন: {min(i + BATCH_SIZE, len(ids))}/{len(ids)}")
+
+    print("\n" + "=" * 65)
+    print("✅ মাল্টি-ডোমেইন ChromaDB ভেক্টর ডেটাবেজ সফলভাবে তৈরি ও সংরক্ষিত হয়েছে!")
+    print(f"📁 ডেটাবেজ পাথ: {CHROMA_DB_DIR}")
+    print(f"🏷️  কালেকশন নাম: {COLLECTION_NAME}")
+    print(f"📊 মোট ইনডেক্সকৃত রেকর্ড: {collection.count()}")
+    print("=" * 65)
+    return collection
 
 
 def test_retrieval(collection):
-  """সিম্যান্টিক সার্চ এবং মেটাডাটা ফিল্টারিং যাচাই করার ডায়াগনস্টিক টেস্ট।"""
-  print("\n🔍 [টেস্ট ১] সাধারণ বাংলা প্রশ্নের মাধ্যমে সিম্যান্টিক সার্চ:")
-  query_text = "শ্রমিকের ওভারটাইম বা অতিরিক্ত কাজের মজুরি কীভাবে হিসাব করা হবে?"
-  print(f"   প্রশ্ন: '{query_text}'")
+    """৩টি ডোমেইনেই সিম্যান্টিক সার্চ এবং মেটাডাটা ফিল্টারিং যাচাই করার টেস্ট।"""
+    print("\n🔍 [ডায়াগনস্টিক টেস্ট ১: শ্রম আইন]")
+    q_labour = "শ্রমিকের অতিরিক্ত কাজের মজুরি বা ওভারটাইম ভাতা কীভাবে প্রদান করতে হবে?"
+    res_labour = collection.query(query_texts=[q_labour], n_results=1, where={"domain": "labour_law"})
+    if res_labour["ids"] and res_labour["ids"][0]:
+        m = res_labour["metadatas"][0][0]
+        dist = res_labour["distances"][0][0]
+        print(f"   আইন: {m['domain_bn']} | ধারা: {m['section_number']} - {m['section_title']}")
+        print(f"   সিমিলারিটি স্কোর: {round(1 - dist, 4)} | স্ট্যাটাস: {m['legal_status']}")
 
-  results = collection.query(query_texts=[query_text], n_results=2)
+    print("\n🔍 [ডায়াগনস্টিক টেস্ট ২: ভোক্তা অধিকার আইন]")
+    q_consumer = "ভেজাল পণ্য বা ওষুধ বিক্রির অভিযোগ ও দণ্ড সম্পর্কিত বিধান"
+    res_consumer = collection.query(query_texts=[q_consumer], n_results=1, where={"domain": "consumer_rights"})
+    if res_consumer["ids"] and res_consumer["ids"][0]:
+        m = res_consumer["metadatas"][0][0]
+        dist = res_consumer["distances"][0][0]
+        print(f"   আইন: {m['domain_bn']} | ধারা: {m['section_number']} - {m['section_title']}")
+        print(f"   সিমিলারিটি স্কোর: {round(1 - dist, 4)} | স্ট্যাটাস: {m['legal_status']}")
 
-  for i in range(len(results["ids"][0])):
-    meta = results["metadatas"][0][i]
-    dist = results["distances"][0][i]
-    similarity = round(1 - dist, 4)
-    print(
-        f"   [{i+1}] ধারা: {meta['section_number']} | শিরোনাম:"
-        f" {meta['section_title']}"
-    )
-    print(
-        f"       অবস্থা: {meta['legal_status']} | সিমিলারিটি স্কোর:"
-        f" {similarity}"
-    )
+    print("\n🔍 [ডায়াগনস্টিক টেস্ট ৩: সাইবার সুরক্ষা / নিরাপত্তা আইন]")
+    q_cyber = "অননুমোদিত প্রবেশ বা কম্পিউটার সিস্টেমে হ্যাকিং করার শাস্তি"
+    res_cyber = collection.query(query_texts=[q_cyber], n_results=1, where={"domain": "cyber_law"})
+    if res_cyber["ids"] and res_cyber["ids"][0]:
+        m = res_cyber["metadatas"][0][0]
+        dist = res_cyber["distances"][0][0]
+        print(f"   আইন: {m['domain_bn']} | ধারা: {m['section_number']} - {m['section_title']}")
+        print(f"   সিমিলারিটি স্কোর: {round(1 - dist, 4)} | স্ট্যাটাস: {m['legal_status']}")
 
-  print("\n🔍 [টেস্ট ২] সুনির্দিষ্ট বিলুপ্ত ধারা (ধারা ১৮৪) মেটাডাটা ফিল্টার সার্চ:")
-  exact_res = collection.get(where={"section_number": "১৮৪"})
-  if exact_res["ids"]:
-    meta = exact_res["metadatas"][0]
-    print(f"   পাওয়া গেছে -> ধারা: {meta['section_number']}")
-    print(f"   বর্তমান অবস্থা: {meta['legal_status']}")
-    print(f"   রেফারেন্স: {meta['amendment_provenance']}")
-  print("=" * 65)
+    print("\n" + "=" * 65)
 
 
 if __name__ == "__main__":
-  col = build_vector_store()
-  test_retrieval(col)
+    col = build_vector_store()
+    test_retrieval(col)

@@ -5,3 +5,5 @@ backend/scripts/__pycache__/
 backend/data/chroma_db/
 backend/data/legal_assistant.db
 .env
+
+.DS_Store

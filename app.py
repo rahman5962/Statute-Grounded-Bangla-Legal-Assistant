@@ -1,18 +1,25 @@
 import os
 import re
 import sys
-from pathlib import Path
 import pandas as pd
 import streamlit as st
 
 # Add backend to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "backend"))
-from auth import (
-    authenticate_user,
-    register_user,
-    validate_user_input,
-)
-from database import init_db, get_audit_trail, log_audit_trail
+try:
+    from backend.auth import (
+        authenticate_user,
+        register_user,
+        validate_user_input,
+    )
+    from backend.database import init_db, get_audit_trail, log_audit_trail
+except ImportError:
+    from auth import (  # type: ignore[import-not-found]
+        authenticate_user,
+        register_user,
+        validate_user_input,
+    )
+    from database import init_db, get_audit_trail, log_audit_trail  # type: ignore[import-not-found]
 
 st.set_page_config(
     page_title="Statute-Grounded Bangla Legal Assistant",
@@ -120,9 +127,15 @@ if "reg_success_msg" not in st.session_state:
 @st.cache_resource(show_spinner=False)
 def load_vector_db():
     try:
-        import importlib
-        mod = importlib.import_module("scripts.03_vector_store")
-        return mod.get_vector_collection()
+        import importlib.util as _ilu
+        _p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend", "scripts", "03_vector_store.py")
+        _spec = _ilu.spec_from_file_location("_vs_mod", _p)
+        if _spec is not None and _spec.loader is not None:
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)
+            return _mod.get_vector_collection()
+        st.error("Vector DB স্ক্রিপ্ট লোড করা যায়নি।")
+        return None
     except Exception as e:
         st.error(f"Vector DB লোড হতে সমস্যা হয়েছে: {str(e)}")
         return None
@@ -141,6 +154,9 @@ def get_current_user_role():
         return user.get("role", "citizen")
     return "citizen"
 
+
+# Top-K default setting
+top_k = 3
 
 # SIDEBAR: Authentication & Controls
 with st.sidebar:
@@ -265,7 +281,7 @@ st.markdown(
     """
 <div class='main-header'>
     <h2 style='margin:0; font-size:26px;'>⚖️ Statute-Grounded Bangla Legal Assistant</h2>
-    <p style='margin:5px 0 0 0; opacity:0.85; font-size:14px;'>বাংলাদেশ শ্রম আইন, ২০০৬-এর নির্ভুল ধারাকেন্দ্রিক আইনি অনুসন্ধান ও অডিট সিস্টেম</p>
+    <p style='margin:5px 0 0 0; opacity:0.85; font-size:14px;'>বাংলাদেশ শ্রম আইন, ভোক্তা-অধিকার সংরক্ষণ আইন এবং সাইবার সুরক্ষা আইনের নির্ভুল আইনি অনুসন্ধান সিস্টেম</p>
 </div>
 """,
     unsafe_allow_html=True,
@@ -275,7 +291,7 @@ st.markdown(
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(
-        "<div class='metric-box'><div class='metric-value'>৩৭৫টি</div><div class='metric-label'>মোট সংকলিত ধারা</div></div>",
+        "<div class='metric-box'><div class='metric-value'>৫০৮টি</div><div class='metric-label'>মোট সংকলিত ধারা</div></div>",
         unsafe_allow_html=True,
     )
 with c2:
@@ -285,7 +301,7 @@ with c2:
     )
 with c3:
     st.markdown(
-        "<div class='metric-box'><div class='metric-value'>সংশোধিত ২০২৬</div><div class='metric-label'>লিগ্যাল স্ট্যাটাস ট্র্যাকিং</div></div>",
+        "<div class='metric-box'><div class='metric-value'>৩টি আইন</div><div class='metric-label'>শ্রম, ভোক্তা ও সাইবার ডোমেইন</div></div>",
         unsafe_allow_html=True,
     )
 with c4:
@@ -312,10 +328,70 @@ tab_search, tab_audit = st.tabs([
 with tab_search:
     st.markdown("##### 💬 আপনার আইনি প্রশ্ন বা সমস্যাটি বাংলায় লিখুন:")
     
+    # ১. বাংলাদেশ শ্রম আইন, ২০০৬ এর সুনির্দিষ্ট পরিভাষা
+    LABOUR_CONCEPTS = [
+        r"শ্রম", r"শ্রমিক", r"কর্মচারী", r"কর্মকর্তা", r"মালিক", r"চাকরি", r"চাকুরী", r"বেতন", r"মজুরি", r"মজুরী", 
+        r"ওভারটাইম", r"অতিরিক্ত\s*কাজ", r"ছুটি", r"নৈমিত্তিক", r"অসুস্থতাজনিত", r"বার্ষিক\s*ছুটি", r"মাতৃত্ব", r"প্রসূতি", 
+        r"কল্যাণ", r"বরখাস্ত", r"ছাঁটাই", r"অপসারণ", r"ডিসচার্জ", r"লে-অফ", r"গ্র্যাচুইটি", r"প্রভিডেন্ট\s*ফান্ড", 
+        r"কারখানা", r"শিল্প\s*প্রতিষ্ঠান", r"ট্রেড\s*ইউনিয়ন", r"ট্রেড\s*ইউনিয়ন", r"কর্মঘণ্টা", r"কর্মঘন্টা", r"পেশাগত\s*স্বাস্থ্য", 
+        r"পেশাগত\s*নিরাপত্তা", r"কর্মক্ষেত্রে\s*দুর্ঘটনা", r"শ্রম\s*আদালত", r"শ্রম\s*ট্রাইব্যুনাল", r"শ্রম\s*আইন", r"মালিক-শ্রমিক",
+        r"ভাতা", r"হাজিরা", r"অপ্রশিক্ষিত", r"শিক্ষানবিস"
+    ]
+
+    # ২. ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯ এর সুনির্দিষ্ট পরিভাষা
+    CONSUMER_CONCEPTS = [
+        r"ভোক্তা", r"ক্রেতা", r"বিক্রেতা", r"দোকান", r"দোকানদার", r"পণ্য", r"দ্রব্য", r"সেবা", r"মূল্য", r"চড়াদাম", 
+        r"চড়া\s*দাম", r"অতিরিক্ত\s*দাম", r"বেশি\s*দাম", r"ওজন", r"বাটখারা", r"ভেজাল", r"নকল", r"মেয়াদোত্তীর্ণ", 
+        r"মেয়াদ\s*উত্তীর্ণ", r"মেয়াদ\s*শেষ", r"পচা", r"বাসি", r"ফরমালিন", r"বিজ্ঞাপন", r"মিথ্যা\s*বিজ্ঞাপন", r"রশিদ", 
+        r"ক্যাশ\s*মেমো", r"ভোক্তা\s*অধিকার", r"ওজনে\s*কম", r"ওজন\s*কম", r"খাবারে\s*ভেজাল", r"ঔষধ", r"ওষুধ", r"ভোক্তা\s*আইন",
+        r"ওজন\s*কারচুপি", r"মজুতদারি", r"কালোবাজারি"
+    ]
+
+    # ৩. সাইবার সুরক্ষা আইন, ২০২৬ / ২০২৩ এর সুনির্দিষ্ট পরিভাষা
+    CYBER_CONCEPTS = [
+        r"সাইবার", r"কম্পিউটার", r"মোবাইল", r"স্মার্টফোন", r"ডিজিটাল", r"ইন্টারনেট", r"অনলাইন", r"হ্যাকিং", r"হ্যাক", 
+        r"আইডি\s*হ্যাক", r"ফেসবুক", r"সোশ্যাল\s*মিডিয়া", r"সোশ্যাল\s*মিডিয়া", r"ডাটা", r"তথ্যপ্রযুক্তি", r"পাসওয়ার্ড", 
+        r"পাসওয়ার্ড", r"ওটিপি", r"ফিশিং", r"ম্যালওয়্যার", r"ম্যালওয়্যার", r"ভাইরাস", r"অনলাইন\s*প্রতারণা", r"ব্ল্যাকমেইল", 
+        r"সাইবার\s*বুলিং", r"পর্নোগ্রাফি", r"স্প্যাম", r"অননুমোদিত\s*প্রবেশ", r"সিআইআই", r"ডিজিটাল\s*নিরাপত্তা", 
+        r"সাইবার\s*সুরক্ষা", r"সাইবার\s*অপরাধ", r"অ্যাকাউন্ট\s*হ্যাক", r"সাইবার\s*আইন", r"সাইবার\s*ট্রাইব্যুনাল"
+    ]
+
+    # বাইরের সকল অপ্রাসঙ্গিক বিষয় (রান্না, খেলা, আবহাওয়া, রাজনীতি, ফৌজদারি বা পারিবারিক আইন যা এই ৩টি আইনের বিষয় নয়)
+    IRRELEVANT_PATTERNS = [
+        r"রান্না", r"রেসিপি", r"বিরিয়ানি", r"বিরিয়ানি", r"পোলাও", r"খাবার\s*বানান", r"পাক\s*করা",
+        r"ক্রিকেট", r"ফুটবল", r"বিশ্বকাপ", r"খেলোয়াড়", r"খেলোয়াড়", r"খেলাধুল", r"মেসি", r"রোনালদো",
+        r"আবহাওয়া", r"আবহাওয়া", r"বৃষ্টি\s*হবে", r"তাপমাত্রা", r"ঝড়\s*বৃষ্টি",
+        r"সিনেমা", r"মুভি", r"গান\s*শোন", r"নাটক", r"নায়ক", r"নায়ক", r"নায়িকা", r"নায়িকা",
+        r"কেমন\s*আছো", r"কেমন\s*আছেন", r"তোমার\s*নাম\s*কি", r"কি\s*করছো", r"কি\s*করো", r"ভাল\s*আছো",
+        r"খুন", r"হত্যা", r"ধর্ষণ", r"ডাকাতি", r"চুরি\s*করা", r"বিবাহ", r"বিয়ে", r"তালাক", r"দেনমোহর", 
+        r"জমি\s*রেজিস্ট্রি", r"দলিল", r"পাসপোর্ট", r"ড্রাইভিং\s*লাইসেন্স", r"ট্রাফিক\s*আইন", r"ভোট", r"নির্বাচন",
+        r"রাজধানী", r"ইতিহাস", r"ভূগোল", r"বিজ্ঞান"
+    ]
+
+    LABOUR_REGEX = re.compile("|".join(LABOUR_CONCEPTS), re.IGNORECASE)
+    CONSUMER_REGEX = re.compile("|".join(CONSUMER_CONCEPTS), re.IGNORECASE)
+    CYBER_REGEX = re.compile("|".join(CYBER_CONCEPTS), re.IGNORECASE)
+    IRRELEVANT_REGEX = re.compile("|".join(IRRELEVANT_PATTERNS), re.IGNORECASE)
+
+    col_dom1, col_dom2 = st.columns([2, 1])
+    with col_dom1:
+        domain_choice = st.selectbox(
+            "অনুসন্ধানের আইনি ক্ষেত্র (Domain Filter):",
+            options=["all", "labour_law", "consumer_rights", "cyber_law"],
+            format_func=lambda x: {
+                "all": "🌐 সকল আইন (শ্রম আইন, ভোক্তা অধিকার ও সাইবার আইন)",
+                "labour_law": "👷 বাংলাদেশ শ্রম আইন, ২০০৬",
+                "consumer_rights": "🛒 ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯",
+                "cyber_law": "💻 সাইবার সুরক্ষা আইন, ২০২৬",
+            }[x],
+        )
+    with col_dom2:
+        st.caption("ℹ️ অনুমোদিত ৩টি আইন ব্যতিরেকে অন্য কোনো সাধারণ বা অসংলগ্ন বিষয়ে সিস্টেম উত্তর প্রদান করবে না।")
+
     with st.form("search_form"):
         query_input = st.text_area(
             "প্রশ্ন বা ঘটনা ইনপুট দিন:",
-            placeholder="উদাহরণ:\n- কোনো কর্মীকে হঠাৎ চাকরি থেকে বাদ দিলে কী ক্ষতিপূরণ দিতে হবে?\n- অতিরিক্ত কাজের জন্য মালিক কত টাকা ভাতা প্রদান করবে?\n- ধারা ১৮৪ বা ধারা ৬৫ অনুযায়ী কী নিয়ম রয়েছে?",
+            placeholder="উদাহরণ:\n- কোনো কর্মীকে হঠাৎ চাকরি থেকে বাদ দিলে কী ক্ষতিপূরণ দিতে হবে?\n- মেয়াদোত্তীর্ণ পণ্য বিক্রি করলে কত টাকা জরিমানা ও কী দণ্ড হবে?\n- ফেসবুক বা অনলাইন অ্যাকাউন্ট হ্যাকিং হলে কোন ধারায় মামলা করা যায়?",
             height=100
         )
         col_btn1, col_btn2 = st.columns([5, 1])
@@ -330,7 +406,74 @@ with tab_search:
     if search_clicked and query_input.strip():
         q = query_input.strip()
 
-        # Guardrail: Check for out-of-range statutes
+        # ধাপ ১: স্পষ্টভাবে ৩টি আইনের বাইরের অসংলগ্ন বিষয় সনাক্তকরণ
+        bad_match = IRRELEVANT_REGEX.search(q)
+        if bad_match:
+            bad_kw = bad_match.group(0)
+            st.error(
+                f"🚨 **আইনি সতর্কতা (Strict Domain Guardrail):**\n\n"
+                f"আপনার প্রশ্নে সিস্টেম বহির্ভূত বিষয় চিহ্নিত হয়েছে: **'{bad_kw}'**।\n\n"
+                "এই সিস্টেমটি **শুধুমাত্র** নিচের ৩টি নির্দিষ্ট আইনের জন্য নির্ধারিত:\n"
+                "১. 👷 **বাংলাদেশ শ্রম আইন, ২০০৬**\n"
+                "২. 🛒 **ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯**\n"
+                "৩. 💻 **সাইবার সুরক্ষা আইন, ২০২৬**\n\n"
+                "এই ৩টি আইনের আওতাভুক্ত নয় এমন কোনো প্রশ্নের উত্তর প্রদান করা হবে না।"
+            )
+            log_audit_trail(
+                current_uid,
+                q,
+                f"[{bad_kw}] Rejected - Out of Domain",
+                "Rejected",
+            )
+            st.stop()
+
+        # ধাপ ২: প্রশ্নটি ৩টি আইনি বিষয়ের মধ্যে পড়ে কি না তা নিখুঁতভাবে যাচাই
+        matched_domains = []
+        if LABOUR_REGEX.search(q):
+            matched_domains.append("labour_law")
+        if CONSUMER_REGEX.search(q):
+            matched_domains.append("consumer_rights")
+        if CYBER_REGEX.search(q):
+            matched_domains.append("cyber_law")
+
+        has_section = bool(re.search(r"ধারা\s*([০-৯0-9]+)", q))
+
+        if not matched_domains and not has_section:
+            st.error(
+                "🚨 **আইনি সতর্কতা (Strict Domain Guardrail):**\n\n"
+                "আপনার প্রশ্নটি অনুমোদিত ৩টি আইনের (শ্রম আইন, ভোক্তা অধিকার আইন, সাইবার সুরক্ষা আইন) আওতাভুক্ত নয়।\n\n"
+                "অনুগ্রহ করে শুধুমাত্র এই ৩টি আইনের সুনির্দিষ্ট ধারা বা আইনি বিষয়বস্তু নিয়ে প্রশ্ন করুন। অন্য কোনো বিষয়ের উত্তর সিস্টেম প্রদান করবে না।"
+            )
+            log_audit_trail(
+                current_uid,
+                q,
+                "Rejected - Out of Domain (No Legal Match)",
+                "Rejected",
+            )
+            st.stop()
+
+        # ধাপ ৩: ব্যবহারকারী কোনো নির্দিষ্ট আইন সিলেক্ট করলে ডোমেইন মিসম্যাচ গার্ডরেইল
+        if domain_choice != "all" and matched_domains and not has_section:
+            if domain_choice not in matched_domains:
+                domain_titles = {
+                    "labour_law": "বাংলাদেশ শ্রম আইন, ২০০৬",
+                    "consumer_rights": "ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯",
+                    "cyber_law": "সাইবার সুরক্ষা আইন, ২০২৬"
+                }
+                st.error(
+                    f"🚨 **আইনি ডোমেইন সতর্কতা:**\n\n"
+                    f"আপনি নির্বাচন করেছেন: **'{domain_titles.get(domain_choice)}'**।\n"
+                    f"কিন্তু আপনার প্রশ্নটি অন্য বিষয়ের সাথে সম্পর্কিত। অনুগ্রহ করে নির্বাচিত আইনের সাথে মিল রেখে প্রশ্ন করুন অথবা ড্রপডাউন থেকে 'সকল আইন' সিলেক্ট করুন।"
+                )
+                log_audit_trail(
+                    current_uid,
+                    q,
+                    f"Rejected - Domain Mismatch ({domain_choice})",
+                    "Rejected",
+                )
+                st.stop()
+
+        # ধাপ ৩: ডোমেইন অনুযায়ী সর্বোচ্চ ধারা সংখ্যা যাচাই (Out-of-range statutes)
         sec_num_match = re.search(r"ধারা\s*([০-৯0-9]+)", q)
         if sec_num_match:
             raw_n = sec_num_match.group(1)
@@ -339,16 +482,25 @@ with tab_search:
                 "৫": "5", "৬": "6", "৭": "7", "৮": "8", "৯": "9",
             }
             norm_n = int("".join(bengali_digits.get(ch, ch) for ch in raw_n))
-            if norm_n > 353:
+
+            domain_max = {
+                "labour_law": (353, "বাংলাদেশ শ্রম আইন, ২০০৬"),
+                "consumer_rights": (82, "ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯"),
+                "cyber_law": (51, "সাইবার সুরক্ষা আইন, ২০২৬"),
+                "all": (353, "অনুমোদিত আইনি ডোমেইন"),
+            }
+            max_sec, domain_name = domain_max.get(domain_choice, (353, "অনুমোদিত আইনি ডোমেইন"))
+
+            if norm_n > max_sec:
                 st.error(
-                    f"🚨 **আইনি সতর্কতা:** বাংলাদেশ শ্রম আইন, ২০০৬-এ **ধারা {raw_n}** নামে"
-                    " কোনো ধারার অস্তিত্ব নেই। সর্বোচ্চ ধারা সংখ্যা ৩৫৩। সিস্টেম কোনো"
+                    f"🚨 **আইনি সতর্কতা:** {domain_name}-এ **ধারা {raw_n}** নামে"
+                    f" কোনো ধারার অস্তিত্ব নেই (সর্বোচ্চ ধারা সংখ্যা: {max_sec})। সিস্টেম কোনো"
                     " কাল্পনিক বা হ্যালুসিনেটেড তথ্য প্রদান করবে না।"
                 )
                 log_audit_trail(
                     current_uid,
                     q,
-                    f"ধারা {raw_n} [Not Found]",
+                    f"ধারা {raw_n} [Out of Range: >{max_sec}]",
                     "Rejected",
                 )
                 st.stop()
@@ -357,13 +509,18 @@ with tab_search:
         collection = load_vector_db()
 
         if collection is not None:
-            chosen_k = top_k if 'top_k' in locals() else 3
-            with st.spinner("শ্রম আইন, ২০০৬-এর ৩৭৫টি ধারার ভেক্টর স্পেসে অনুসন্ধান করা হচ্ছে..."):
-                results = collection.query(
-                    query_texts=[q],
-                    n_results=chosen_k,
-                    include=["documents", "metadatas", "distances"],
-                )
+            chosen_k = top_k
+            dom_label = "সকল অনুমোদিত আইন" if domain_choice == "all" else domain_choice
+            with st.spinner(f"আইনি ভেক্টর স্পেসে অনুসন্ধান করা হচ্ছে ({dom_label})..."):
+                query_kwargs = {
+                    "query_texts": [q],
+                    "n_results": chosen_k,
+                    "include": ["documents", "metadatas", "distances"],
+                }
+                if domain_choice != "all":
+                    query_kwargs["where"] = {"domain": domain_choice}
+
+                results = collection.query(**query_kwargs)
 
             if results and results.get("documents") and len(results["documents"][0]) > 0:
                 docs = results["documents"][0]
@@ -373,7 +530,7 @@ with tab_search:
                 best_distance = distances[0]
                 confidence_score = round(max(0.0, 1.0 - (best_distance / 2.0)), 2)
 
-                if confidence_score < 0.25:
+                if best_distance > 0.40 or confidence_score < 40.0:
                     st.warning(
                         "⚠️ আপনার প্রশ্নের সাথে সুনির্দিষ্ট কোনো ধারার সরাসরি মিল পাওয়া যায়নি। অনুগ্রহ করে শ্রম অধিকার বা ধারা সম্পর্কিত শব্দ ব্যবহার করুন।"
                     )
@@ -396,13 +553,19 @@ with tab_search:
                             card_class += " amended"
                             badge_html = "<span class='badge badge-amended'>🔄 সংশোধিত (Amended)</span>"
 
+                        domain_tag = meta.get("domain_bn", "আইনি ডোমেইন")
+                        act_tag = meta.get("act_name", "বাংলাদেশ আইন")
+
                         st.markdown(
                             f"""
                             <div class='{card_class}'>
                                 <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;'>
-                                    <h3 style='margin:0; font-size:18px; color:#38bdf8;'>ধারা {sec_num}: {sec_title}</h3>
+                                    <span style='font-size:12px; font-weight:700; color:#38bdf8; background:#1e293b; padding:4px 10px; border-radius:6px; border:1px solid #334155;'>
+                                        🏛️ {domain_tag} | {act_tag}
+                                    </span>
                                     <div>{badge_html}</div>
                                 </div>
+                                <h3 style='margin:4px 0 10px 0; font-size:18px; color:#f1f5f9;'>ধারা {sec_num}: {sec_title}</h3>
                                 <div style='color:#94a3b8; font-size:13px; margin-bottom:12px;'>
                                     📜 <b>সূত্র ও সংশোধনী ইতিহাস:</b> {amendment}
                                 </div>
