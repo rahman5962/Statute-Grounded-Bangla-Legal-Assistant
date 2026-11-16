@@ -510,15 +510,30 @@ with tab_search:
 
         if collection is not None:
             chosen_k = top_k
-            dom_label = "সকল অনুমোদিত আইন" if domain_choice == "all" else domain_choice
+            
+            # নিখুঁত ডোমেইন ফিল্টারিং ও অটো-রাউটিং (Intelligent Domain Routing)
+            target_domain_filter = None
+            if domain_choice != "all":
+                target_domain_filter = domain_choice
+            elif len(matched_domains) == 1:
+                target_domain_filter = matched_domains[0]
+
+            dom_display_names = {
+                "labour_law": "বাংলাদেশ শ্রম আইন, ২০০৬",
+                "consumer_rights": "ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯",
+                "cyber_law": "সাইবার সুরক্ষা আইন, ২০২৬",
+                None: "সকল অনুমোদিত ৩টি আইন"
+            }
+            dom_label = dom_display_names.get(target_domain_filter, "সকল অনুমোদিত ৩টি আইন")
+
             with st.spinner(f"আইনি ভেক্টর স্পেসে অনুসন্ধান করা হচ্ছে ({dom_label})..."):
                 query_kwargs = {
                     "query_texts": [q],
                     "n_results": chosen_k,
                     "include": ["documents", "metadatas", "distances"],
                 }
-                if domain_choice != "all":
-                    query_kwargs["where"] = {"domain": domain_choice}
+                if target_domain_filter:
+                    query_kwargs["where"] = {"domain": target_domain_filter}
 
                 results = collection.query(**query_kwargs)
 
@@ -528,14 +543,15 @@ with tab_search:
                 distances = results["distances"][0]
 
                 best_distance = distances[0]
-                confidence_score = round(max(0.0, 1.0 - (best_distance / 2.0)), 2)
+                confidence_percent = round(max(0.0, 1.0 - (best_distance / 2.0)) * 100, 1)
 
-                if best_distance > 0.40 or confidence_score < 40.0:
+                # থ্রেশহোল্ড ফিক্স: বৈধ আইনি অনুসন্ধানের জন্য ফলাফল প্রদর্শন
+                if confidence_percent < 25.0:
                     st.warning(
-                        "⚠️ আপনার প্রশ্নের সাথে সুনির্দিষ্ট কোনো ধারার সরাসরি মিল পাওয়া যায়নি। অনুগ্রহ করে শ্রম অধিকার বা ধারা সম্পর্কিত শব্দ ব্যবহার করুন।"
+                        "⚠️ আপনার প্রশ্নের সাথে সুনির্দিষ্ট কোনো ধারার পর্যাপ্ত মিল পাওয়া যায়নি। অনুগ্রহ করে আরও স্পষ্ট আইনি পরিভাষা ব্যবহার করুন।"
                     )
                 else:
-                    st.success(f"✅ আইনি রেফারেন্স পাওয়া গেছে (কনফিডেন্স স্কোর: {confidence_score * 100:.0f}%)")
+                    st.success(f"✅ আইনি রেফারেন্স পাওয়া গেছে (কনফিডেন্স স্কোর: {confidence_percent:.0f}%) | অনুসন্ধান ক্ষেত্র: {dom_label}")
 
                     for i, (doc, meta) in enumerate(zip(docs, metas)):
                         sec_num = meta.get("section_number", "N/A")
