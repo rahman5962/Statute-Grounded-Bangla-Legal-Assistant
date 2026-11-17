@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="বাংলাদেশের নির্বাচিত আইনের ধারা খুঁজুন।">
+    <title>আইন সহায়ক | Statute-Grounded Bangla Legal Assistant</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, "Noto Sans Bengali", sans-serif;
+        color: #172033;
+        background: #f3f6fa;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      main { max-width: 860px; margin: 0 auto; padding: 48px 20px; }
+      header, form, .result {
+        background: #fff;
+        border: 1px solid #dce4ee;
+        border-radius: 14px;
+        padding: 24px;
+      }
+      header { margin-bottom: 20px; }
+      h1 { margin: 0 0 8px; color: #123253; }
+      p { line-height: 1.65; }
+      label { display: block; margin: 14px 0 6px; font-weight: 650; }
+      textarea, select, button {
+        width: 100%;
+        border: 1px solid #bdc9d8;
+        border-radius: 8px;
+        padding: 11px 12px;
+        font: inherit;
+      }
+      textarea { min-height: 112px; resize: vertical; }
+      button {
+        margin-top: 16px;
+        border: 0;
+        color: #fff;
+        background: #145a8d;
+        cursor: pointer;
+        font-weight: 700;
+      }
+      button:disabled { opacity: .65; cursor: wait; }
+      #results { display: grid; gap: 12px; margin-top: 20px; }
+      .result h2 { margin: 0 0 8px; font-size: 1.15rem; }
+      .meta { color: #42566f; font-size: .92rem; }
+      .content { white-space: pre-wrap; overflow-wrap: anywhere; }
+      #message { color: #9a3412; }
+      footer { color: #52647a; font-size: .9rem; padding: 16px 4px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>বাংলা আইনি সহায়ক</h1>
+        <p>বাংলাদেশ শ্রম আইন, ভোক্তা-অধিকার সংরক্ষণ আইন ও সাইবার সুরক্ষা আইন থেকে প্রাসঙ্গিক ধারা অনুসন্ধান করুন।</p>
+        <a href="/docs">API ডকুমেন্টেশন</a>
+      </header>
+      <form id="search-form">
+        <label for="domain">আইনি ক্ষেত্র</label>
+        <select id="domain" name="domain">
+          <option value="all">সকল আইন</option>
+          <option value="labour_law">শ্রম আইন</option>
+          <option value="consumer_rights">ভোক্তা অধিকার</option>
+          <option value="cyber_law">সাইবার আইন</option>
+        </select>
+        <label for="query">আপনার প্রশ্ন</label>
+        <textarea id="query" name="query" required maxlength="3000" placeholder="যেমন: মেয়াদোত্তীর্ণ পণ্য বিক্রি করলে কী ব্যবস্থা নেওয়া যায়?"></textarea>
+        <button id="submit" type="submit">প্রাসঙ্গিক ধারা খুঁজুন</button>
+      </form>
+      <p id="message" role="status" aria-live="polite"></p>
+      <section id="results" aria-label="অনুসন্ধানের ফলাফল"></section>
+      <footer>ফলাফল আইনগত তথ্যসূত্র; ব্যক্তিগত আইনি পরামর্শ নয়। গুরুত্বপূর্ণ সিদ্ধান্তের আগে মূল আইন বা আইনজীবীর সঙ্গে যাচাই করুন।</footer>
+    </main>
+    <script>
+      const form = document.querySelector("#search-form");
+      const button = document.querySelector("#submit");
+      const message = document.querySelector("#message");
+      const results = document.querySelector("#results");
+
+      function addText(parent, tag, className, value) {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        element.textContent = value ?? "";
+        parent.append(element);
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        message.textContent = "";
+        results.replaceChildren();
+        button.disabled = true;
+        button.textContent = "অনুসন্ধান চলছে…";
+        try {
+          const response = await fetch("/api/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: form.query.value,
+              domain: form.domain.value,
+              top_k: 3
+            })
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "অনুসন্ধান সম্পন্ন হয়নি।");
+          message.textContent = data.message || "";
+          for (const item of data.results || []) {
+            const card = document.createElement("article");
+            card.className = "result";
+            addText(card, "h2", "", `ধারা ${item.section_number}: ${item.section_title}`);
+            addText(
+              card,
+              "p",
+              "meta",
+              `${item.act_name || item.domain_bn || ""} · ${item.legal_status} · আত্মবিশ্বাস ${item.confidence}%`
+            );
+            addText(card, "p", "content", item.content);
+            results.append(card);
+          }
+        } catch (error) {
+          message.textContent = error instanceof Error ? error.message : "অনুসন্ধান সম্পন্ন হয়নি।";
+        } finally {
+          button.disabled = false;
+          button.textContent = "প্রাসঙ্গিক ধারা খুঁজুন";
+        }
+      });
+    </script>
+  </body>
+</html>
