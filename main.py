@@ -82,6 +82,7 @@ class RegisterRequest(BaseModel):
     email: Annotated[str, Field(min_length=3, max_length=320)]
     password: Annotated[str, Field(min_length=1, max_length=128)]
     confirm_password: Annotated[str, Field(min_length=1, max_length=128)]
+    role: Literal["citizen", "lawyer", "student"] = "citizen"
 
 
 class LoginRequest(BaseModel):
@@ -358,7 +359,7 @@ def api_register(request: RegisterRequest) -> dict[str, str]:
             request.full_name.strip(),
             request.email.strip(),
             request.password,
-            "citizen",
+            request.role,
         )
     )
     if not succeeded:

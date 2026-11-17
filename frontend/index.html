@@ -1,130 +1,949 @@
 <!doctype html>
-<html lang="bn">
+<html lang="bn" class="dark">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="বাংলাদেশের নির্বাচিত আইনের ধারা খুঁজুন।">
-    <title>আইন সহায়ক | Statute-Grounded Bangla Legal Assistant</title>
+    <meta name="theme-color" content="#070b14">
+    <meta name="description" content="বাংলাদেশের নির্বাচিত আইনের জন্য প্রমাণ-ভিত্তিক বাংলা আইনি সহায়ক।">
+    <title>আইনসাথী — Statute-Grounded Legal Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ["Hind Siliguri", "sans-serif"] },
+            colors: {
+              ink: "#070b14",
+              panel: "#0d1422",
+              line: "#202b3d",
+              mint: "#55e6bd",
+              sky: "#68b9ff"
+            },
+            boxShadow: {
+              glow: "0 0 40px rgba(85,230,189,.09)",
+              card: "0 18px 60px rgba(0,0,0,.24)"
+            }
+          }
+        }
+      };
+    </script>
     <style>
-      :root {
-        color-scheme: light;
-        font-family: system-ui, "Noto Sans Bengali", sans-serif;
-        color: #172033;
-        background: #f3f6fa;
+      :root { color-scheme: dark; }
+      body {
+        background:
+          radial-gradient(ellipse at 12% 0%, rgba(35, 91, 112, .22), transparent 34rem),
+          radial-gradient(ellipse at 95% 16%, rgba(60, 53, 119, .18), transparent 32rem),
+          #070b14;
       }
-      * { box-sizing: border-box; }
-      body { margin: 0; }
-      main { max-width: 860px; margin: 0 auto; padding: 48px 20px; }
-      header, form, .result {
-        background: #fff;
-        border: 1px solid #dce4ee;
-        border-radius: 14px;
-        padding: 24px;
+      .glass {
+        background: rgba(14, 21, 35, .76);
+        border: 1px solid rgba(148, 163, 184, .14);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, .22);
+        backdrop-filter: blur(18px);
       }
-      header { margin-bottom: 20px; }
-      h1 { margin: 0 0 8px; color: #123253; }
-      p { line-height: 1.65; }
-      label { display: block; margin: 14px 0 6px; font-weight: 650; }
-      textarea, select, button {
+      .field {
         width: 100%;
-        border: 1px solid #bdc9d8;
-        border-radius: 8px;
-        padding: 11px 12px;
-        font: inherit;
+        border: 1px solid #29364a;
+        border-radius: .85rem;
+        background: #0a111d;
+        color: #e5edf8;
+        outline: none;
+        transition: border-color .2s, box-shadow .2s;
       }
-      textarea { min-height: 112px; resize: vertical; }
-      button {
-        margin-top: 16px;
-        border: 0;
-        color: #fff;
-        background: #145a8d;
-        cursor: pointer;
-        font-weight: 700;
+      .field:focus {
+        border-color: #55e6bd;
+        box-shadow: 0 0 0 3px rgba(85, 230, 189, .12);
       }
-      button:disabled { opacity: .65; cursor: wait; }
-      #results { display: grid; gap: 12px; margin-top: 20px; }
-      .result h2 { margin: 0 0 8px; font-size: 1.15rem; }
-      .meta { color: #42566f; font-size: .92rem; }
-      .content { white-space: pre-wrap; overflow-wrap: anywhere; }
-      #message { color: #9a3412; }
-      footer { color: #52647a; font-size: .9rem; padding: 16px 4px; }
+      .domain-pill[aria-pressed="true"] {
+        border-color: rgba(85, 230, 189, .62);
+        background: rgba(85, 230, 189, .1);
+        color: #8af0d2;
+      }
+      .voice-pulse::before {
+        content: "";
+        position: absolute;
+        inset: -5px;
+        border-radius: 9999px;
+        border: 1px solid rgba(248, 113, 113, .8);
+        animation: pulse-ring 1.2s ease-out infinite;
+      }
+      @keyframes pulse-ring {
+        0% { transform: scale(.75); opacity: .9; }
+        100% { transform: scale(1.7); opacity: 0; }
+      }
+      dialog::backdrop { background: rgba(2, 6, 14, .78); backdrop-filter: blur(6px); }
+      .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #314158 transparent; }
+      ::selection { background: rgba(85, 230, 189, .28); }
     </style>
   </head>
-  <body>
-    <main>
-      <header>
-        <h1>বাংলা আইনি সহায়ক</h1>
-        <p>বাংলাদেশ শ্রম আইন, ভোক্তা-অধিকার সংরক্ষণ আইন ও সাইবার সুরক্ষা আইন থেকে প্রাসঙ্গিক ধারা অনুসন্ধান করুন।</p>
-        <a href="/docs">API ডকুমেন্টেশন</a>
-      </header>
-      <form id="search-form">
-        <label for="domain">আইনি ক্ষেত্র</label>
-        <select id="domain" name="domain">
-          <option value="all">সকল আইন</option>
-          <option value="labour_law">শ্রম আইন</option>
-          <option value="consumer_rights">ভোক্তা অধিকার</option>
-          <option value="cyber_law">সাইবার আইন</option>
-        </select>
-        <label for="query">আপনার প্রশ্ন</label>
-        <textarea id="query" name="query" required maxlength="3000" placeholder="যেমন: মেয়াদোত্তীর্ণ পণ্য বিক্রি করলে কী ব্যবস্থা নেওয়া যায়?"></textarea>
-        <button id="submit" type="submit">প্রাসঙ্গিক ধারা খুঁজুন</button>
-      </form>
-      <p id="message" role="status" aria-live="polite"></p>
-      <section id="results" aria-label="অনুসন্ধানের ফলাফল"></section>
-      <footer>ফলাফল আইনগত তথ্যসূত্র; ব্যক্তিগত আইনি পরামর্শ নয়। গুরুত্বপূর্ণ সিদ্ধান্তের আগে মূল আইন বা আইনজীবীর সঙ্গে যাচাই করুন।</footer>
-    </main>
-    <script>
-      const form = document.querySelector("#search-form");
-      const button = document.querySelector("#submit");
-      const message = document.querySelector("#message");
-      const results = document.querySelector("#results");
+  <body class="min-h-screen font-sans text-slate-100 antialiased">
+    <div id="auth-view" class="flex min-h-screen items-center justify-center px-4 py-10">
+      <div class="grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/60 shadow-card lg:grid-cols-[1.05fr_.95fr]">
+        <section class="relative hidden min-h-[650px] flex-col justify-between overflow-hidden bg-gradient-to-br from-emerald-500/10 via-slate-900 to-indigo-500/10 p-12 lg:flex">
+          <div class="absolute -left-20 top-28 h-72 w-72 rounded-full bg-emerald-300/10 blur-3xl"></div>
+          <div class="relative">
+            <div class="mb-16 flex items-center gap-3">
+              <span class="grid h-11 w-11 place-items-center rounded-2xl bg-mint/10 text-mint">
+                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V7l-8-4Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+              </span>
+              <div>
+                <p class="text-xl font-bold tracking-tight">আইনসাথী</p>
+                <p class="text-xs text-slate-400">STATUTE-GROUNDED LEGAL AI</p>
+              </div>
+            </div>
+            <p class="mb-4 text-sm font-semibold uppercase tracking-[.22em] text-mint">বিশ্বাসযোগ্য আইন, সহজ ভাষায়</p>
+            <h1 class="max-w-lg text-4xl font-semibold leading-tight xl:text-5xl">বাংলাদেশের আইন জানুন, <span class="text-mint">প্রমাণের সঙ্গে।</span></h1>
+            <p class="mt-6 max-w-md text-base leading-8 text-slate-400">শ্রম, ভোক্তা অধিকার ও সাইবার আইনের নির্দিষ্ট ধারায় অনুসন্ধান করুন। প্রতিটি উত্তরের সঙ্গে থাকছে মূল আইনি পাঠ ও সূত্র।</p>
+          </div>
+          <div class="relative grid grid-cols-3 gap-3">
+            <div class="rounded-2xl border border-white/10 bg-white/[.035] p-4"><p class="text-2xl font-bold text-white">৩</p><p class="mt-1 text-xs text-slate-400">আইনি ক্ষেত্র</p></div>
+            <div class="rounded-2xl border border-white/10 bg-white/[.035] p-4"><p class="text-2xl font-bold text-white">৫০৮</p><p class="mt-1 text-xs text-slate-400">সংকলিত ধারা</p></div>
+            <div class="rounded-2xl border border-white/10 bg-white/[.035] p-4"><p class="text-2xl font-bold text-mint">বাংলা</p><p class="mt-1 text-xs text-slate-400">ভাষা-প্রথম অভিজ্ঞতা</p></div>
+          </div>
+        </section>
 
-      function addText(parent, tag, className, value) {
-        const element = document.createElement(tag);
-        if (className) element.className = className;
-        element.textContent = value ?? "";
-        parent.append(element);
+        <section class="flex items-center px-5 py-10 sm:px-10 lg:px-12">
+          <div class="mx-auto w-full max-w-md">
+            <div class="mb-8 flex items-center gap-3 lg:hidden">
+              <span class="grid h-10 w-10 place-items-center rounded-xl bg-mint/10 text-mint">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V7l-8-4Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+              </span>
+              <span class="text-lg font-bold">আইনসাথী</span>
+            </div>
+            <p class="text-sm font-semibold text-mint">স্বাগতম</p>
+            <h2 class="mt-1 text-3xl font-semibold">আপনার আইনি কর্মক্ষেত্র</h2>
+            <p class="mt-2 text-sm text-slate-400">চালিয়ে যেতে অ্যাকাউন্টে প্রবেশ করুন বা নতুন অ্যাকাউন্ট তৈরি করুন।</p>
+
+            <div class="mt-8 grid grid-cols-2 rounded-xl border border-white/10 bg-slate-950/70 p-1" role="tablist" aria-label="অ্যাকাউন্ট">
+              <button id="login-tab" class="rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition" type="button" role="tab" aria-selected="true">লগইন</button>
+              <button id="register-tab" class="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-400 transition" type="button" role="tab" aria-selected="false">নিবন্ধন</button>
+            </div>
+
+            <div id="auth-success" class="mt-4 hidden rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200" role="status"></div>
+            <div id="auth-error" class="mt-4 hidden rounded-xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-200" role="alert"></div>
+
+            <form id="login-form" class="mt-5 space-y-4">
+              <div>
+                <label for="login-email" class="mb-1.5 block text-sm font-medium text-slate-300">ইমেইল</label>
+                <input id="login-email" class="field px-4 py-3" type="email" autocomplete="email" required placeholder="name@example.com">
+              </div>
+              <div>
+                <label for="login-password" class="mb-1.5 block text-sm font-medium text-slate-300">পাসওয়ার্ড</label>
+                <input id="login-password" class="field px-4 py-3" type="password" autocomplete="current-password" required placeholder="আপনার পাসওয়ার্ড">
+              </div>
+              <button id="login-submit" class="flex w-full items-center justify-center gap-2 rounded-xl bg-mint px-4 py-3 font-bold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60" type="submit">
+                <span>নিরাপদে লগইন করুন</span>
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </button>
+            </form>
+
+            <form id="register-form" class="mt-5 hidden space-y-3">
+              <div>
+                <label for="register-name" class="mb-1.5 block text-sm font-medium text-slate-300">পূর্ণ নাম</label>
+                <input id="register-name" class="field px-4 py-2.5" type="text" autocomplete="name" minlength="3" maxlength="200" required placeholder="আপনার নাম">
+              </div>
+              <div>
+                <label for="register-email" class="mb-1.5 block text-sm font-medium text-slate-300">ইমেইল</label>
+                <input id="register-email" class="field px-4 py-2.5" type="email" autocomplete="email" maxlength="320" required placeholder="name@example.com">
+              </div>
+              <div>
+                <label for="register-role" class="mb-1.5 block text-sm font-medium text-slate-300">আপনার পরিচয়</label>
+                <select id="register-role" class="field px-4 py-2.5">
+                  <option value="citizen">নাগরিক</option>
+                  <option value="lawyer">আইনজীবী</option>
+                  <option value="student">শিক্ষার্থী</option>
+                </select>
+              </div>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label for="register-password" class="mb-1.5 block text-sm font-medium text-slate-300">পাসওয়ার্ড</label>
+                  <input id="register-password" class="field px-4 py-2.5" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="কমপক্ষে ৮ অক্ষর">
+                </div>
+                <div>
+                  <label for="register-confirm" class="mb-1.5 block text-sm font-medium text-slate-300">নিশ্চিত করুন</label>
+                  <input id="register-confirm" class="field px-4 py-2.5" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="আবার লিখুন">
+                </div>
+              </div>
+              <button id="register-submit" class="w-full rounded-xl bg-mint px-4 py-3 font-bold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60" type="submit">অ্যাকাউন্ট তৈরি করুন</button>
+              <p class="text-center text-xs leading-5 text-slate-500">নিবন্ধনের মাধ্যমে আপনি শর্তাবলি ও তথ্য-ব্যবহারের নীতিতে সম্মতি দিচ্ছেন।</p>
+            </form>
+            <p class="mt-8 text-center text-xs leading-5 text-slate-500">এই সেবা আইনি তথ্য অনুসন্ধানে সহায়তা করে; এটি আইনজীবীর ব্যক্তিগত পরামর্শের বিকল্প নয়।</p>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div id="app-view" class="hidden min-h-screen">
+      <aside class="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/[.07] bg-slate-950/70 px-5 py-6 backdrop-blur-xl lg:flex">
+        <a href="#" class="flex items-center gap-3 px-2">
+          <span class="grid h-10 w-10 place-items-center rounded-xl bg-mint/10 text-mint">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V7l-8-4Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+          </span>
+          <span><span class="block font-bold">আইনসাথী</span><span class="block text-[10px] tracking-[.18em] text-slate-500">LEGAL INTELLIGENCE</span></span>
+        </a>
+        <p class="mb-3 mt-10 px-3 text-[11px] font-semibold uppercase tracking-[.2em] text-slate-600">ওয়ার্কস্পেস</p>
+        <nav class="space-y-1" aria-label="প্রধান নেভিগেশন">
+          <button data-view="search" class="nav-button flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-300 transition hover:bg-white/[.05]" aria-current="page"><span>⌕</span>আইনি অনুসন্ধান</button>
+          <button data-view="bookmarks" class="nav-button flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-400 transition hover:bg-white/[.05]"><span>◇</span>কেস ফোল্ডার <span id="bookmark-count" class="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-xs">০</span></button>
+          <button data-view="audit" class="nav-button flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-400 transition hover:bg-white/[.05]"><span>◷</span>অডিট লগ</button>
+        </nav>
+        <div class="mt-auto rounded-2xl border border-mint/10 bg-mint/[.04] p-4">
+          <div class="flex items-center gap-2 text-xs font-semibold text-mint"><span class="h-2 w-2 rounded-full bg-mint"></span>প্রমাণ-ভিত্তিক অনুসন্ধান</div>
+          <p class="mt-2 text-xs leading-5 text-slate-500">ফলাফলে মূল আইনের ধারা ও আইনি অবস্থা যাচাই করুন।</p>
+        </div>
+        <div class="mt-4 flex items-center gap-3 rounded-xl border border-white/[.06] bg-white/[.025] p-3">
+          <span id="user-avatar" class="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-emerald-300/30 to-sky-400/30 text-sm font-bold text-white">আ</span>
+          <span class="min-w-0 flex-1"><span id="sidebar-name" class="block truncate text-sm font-semibold"></span><span id="sidebar-role" class="block text-xs text-slate-500"></span></span>
+          <button class="logout-button rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-white" type="button" title="লগআউট" aria-label="লগআউট">↪</button>
+        </div>
+      </aside>
+
+      <div class="lg:pl-64">
+        <header class="sticky top-0 z-20 border-b border-white/[.07] bg-ink/75 backdrop-blur-xl">
+          <div class="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-4 py-3 sm:px-7 lg:px-10">
+            <div class="flex items-center gap-3 lg:hidden">
+              <span class="grid h-9 w-9 place-items-center rounded-xl bg-mint/10 text-mint">⚖</span>
+              <span class="font-bold">আইনসাথী</span>
+            </div>
+            <div class="hidden items-center gap-2 text-sm text-slate-500 sm:flex"><span>আইনি সহায়ক</span><span class="text-slate-700">/</span><span id="breadcrumb" class="text-slate-200">অনুসন্ধান</span></div>
+            <div class="ml-auto flex items-center gap-3">
+              <span class="hidden rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400 sm:inline-flex"><span class="mr-2 text-mint">●</span>ডাটাবেস সংযুক্ত</span>
+              <a href="/docs" class="hidden rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 sm:inline-flex">API Docs ↗</a>
+              <button class="logout-button rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 lg:hidden" type="button">লগআউট</button>
+            </div>
+          </div>
+          <nav class="flex gap-2 overflow-x-auto px-4 pb-3 lg:hidden" aria-label="মোবাইল নেভিগেশন">
+            <button data-view="search" class="nav-button whitespace-nowrap rounded-lg bg-white/[.06] px-3 py-2 text-xs text-slate-200">অনুসন্ধান</button>
+            <button data-view="bookmarks" class="nav-button whitespace-nowrap rounded-lg px-3 py-2 text-xs text-slate-400">কেস ফোল্ডার</button>
+            <button data-view="audit" class="nav-button whitespace-nowrap rounded-lg px-3 py-2 text-xs text-slate-400">অডিট লগ</button>
+          </nav>
+        </header>
+
+        <main class="mx-auto max-w-[1500px] px-4 py-7 sm:px-7 sm:py-9 lg:px-10">
+          <div id="global-message" class="mb-5 hidden rounded-xl border px-4 py-3 text-sm" role="status" aria-live="polite"></div>
+          <section class="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+              <p class="text-sm font-medium text-mint">আপনার আইনি ওয়ার্কস্পেস</p>
+              <h1 class="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">শুভেচ্ছা, <span id="welcome-name"></span></h1>
+              <p class="mt-2 text-sm text-slate-400">যাচাইকৃত আইনি সূত্র থেকে আপনার প্রয়োজনীয় উত্তর খুঁজুন।</p>
+            </div>
+            <div class="flex items-center gap-2 self-start rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-2 sm:self-auto">
+              <span class="h-2 w-2 rounded-full bg-mint shadow-[0_0_10px_rgba(85,230,189,.8)]"></span>
+              <span id="welcome-role" class="text-xs text-slate-300"></span>
+            </div>
+          </section>
+
+          <section class="mb-8 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="আইনি ডাটাবেসের পরিসংখ্যান">
+            <article class="glass rounded-2xl p-4 sm:p-5"><div class="flex items-center justify-between"><span class="text-xs text-slate-400 sm:text-sm">মোট Grounded Statutes</span><span class="text-mint">✦</span></div><p class="mt-3 text-3xl font-bold">৫০৮</p><p class="mt-1 text-xs text-slate-500">৩টি আইনের সংকলিত ধারা</p></article>
+            <article class="glass rounded-2xl p-4 sm:p-5"><div class="flex items-center justify-between"><span class="text-xs text-slate-400 sm:text-sm">শ্রম আইন, ২০০৬</span><span class="text-sky">◈</span></div><p class="mt-3 text-3xl font-bold">৩৭৫</p><p class="mt-1 text-xs text-slate-500">বাংলাদেশ শ্রম আইন</p></article>
+            <article class="glass rounded-2xl p-4 sm:p-5"><div class="flex items-center justify-between"><span class="text-xs text-slate-400 sm:text-sm">ভোক্তা অধিকার আইন, ২০০৯</span><span class="text-amber-300">◈</span></div><p class="mt-3 text-3xl font-bold">৮২</p><p class="mt-1 text-xs text-slate-500">ভোক্তা-অধিকার সংরক্ষণ আইন</p></article>
+            <article class="glass rounded-2xl p-4 sm:p-5"><div class="flex items-center justify-between"><span class="text-xs text-slate-400 sm:text-sm">সাইবার সুরক্ষা আইন, ২০২৬</span><span class="text-violet-300">◈</span></div><p class="mt-3 text-3xl font-bold">৫১</p><p class="mt-1 text-xs text-slate-500">ডিজিটাল নিরাপত্তা ও সাইবার</p></article>
+          </section>
+
+          <section id="view-search" class="app-view">
+            <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-slate-500">STATUTE INTELLIGENCE</p><h2 class="mt-1 text-2xl font-semibold">আইনি অনুসন্ধান</h2></div>
+              <p class="text-xs text-slate-500">বাংলা প্রশ্ন করুন · উত্তর আইন-ভিত্তিক</p>
+            </div>
+            <div class="glass rounded-3xl p-4 shadow-glow sm:p-6">
+              <div class="mb-5 flex flex-wrap gap-2" role="group" aria-label="আইনের ক্ষেত্র">
+                <button class="domain-pill rounded-full border border-white/10 px-4 py-2 text-xs text-slate-400 transition hover:border-white/20" type="button" data-domain="all" aria-pressed="true">সকল আইন</button>
+                <button class="domain-pill rounded-full border border-white/10 px-4 py-2 text-xs text-slate-400 transition hover:border-white/20" type="button" data-domain="labour_law" aria-pressed="false">শ্রম আইন</button>
+                <button class="domain-pill rounded-full border border-white/10 px-4 py-2 text-xs text-slate-400 transition hover:border-white/20" type="button" data-domain="consumer_rights" aria-pressed="false">ভোক্তা অধিকার</button>
+                <button class="domain-pill rounded-full border border-white/10 px-4 py-2 text-xs text-slate-400 transition hover:border-white/20" type="button" data-domain="cyber_law" aria-pressed="false">সাইবার আইন</button>
+              </div>
+              <form id="search-form">
+                <label for="search-query" class="sr-only">আপনার আইনি প্রশ্ন</label>
+                <div class="relative">
+                  <textarea id="search-query" class="field min-h-36 resize-y px-4 py-4 pb-14 text-base leading-7 placeholder:text-slate-600" maxlength="3000" required placeholder="আপনার ঘটনা বা আইনি প্রশ্নটি বাংলায় লিখুন…&#10;যেমন: পণ্য কেনার পর ত্রুটি ধরা পড়লে কীভাবে অভিযোগ করব?"></textarea>
+                  <div class="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                      <button id="voice-button" class="relative inline-flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2 text-xs text-slate-300 transition hover:border-mint/30 hover:text-white" type="button" title="বাংলায় কথা বলে লিখুন">
+                        <span id="voice-dot" class="relative h-2.5 w-2.5 rounded-full bg-slate-500"></span>
+                        <svg class="h-4 w-4 text-mint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg>
+                        <span id="voice-label">বাংলায় বলুন</span>
+                      </button>
+                      <span id="voice-status" class="hidden text-xs text-rose-300" aria-live="polite">শুনছি…</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <label for="top-k" class="hidden text-xs text-slate-500 sm:inline">Top-K</label>
+                      <select id="top-k" class="rounded-lg border border-white/10 bg-slate-900 px-2 py-2 text-xs text-slate-300 outline-none focus:border-mint/50" aria-label="ফলাফলের সংখ্যা">
+                        <option value="1">Top 1</option><option value="2">Top 2</option><option value="3" selected>Top 3</option><option value="4">Top 4</option><option value="5">Top 5</option><option value="6">Top 6</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                  <p class="max-w-xl text-xs leading-5 text-slate-500">নির্দিষ্ট ধারা নম্বর উল্লেখ করলে নির্বাচিত আইনের সীমা যাচাই করা হবে। তথ্য যাচাই ছাড়া আইনি সিদ্ধান্ত নেবেন না।</p>
+                  <button id="search-submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-mint px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60 sm:w-auto" type="submit">
+                    <span id="search-submit-label">ধারা খুঁজুন</span>
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div class="mt-8 flex items-center justify-between gap-4">
+              <div><h3 class="text-lg font-semibold">প্রাসঙ্গিক আইনি সূত্র</h3><p id="results-caption" class="mt-1 text-xs text-slate-500">অনুসন্ধান করলে প্রাসঙ্গিক ধারা এখানে দেখা যাবে।</p></div>
+              <span id="result-count" class="hidden rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400"></span>
+            </div>
+            <div id="search-message" class="mt-4 hidden rounded-xl border px-4 py-3 text-sm" role="status" aria-live="polite"></div>
+            <div id="search-results" class="mt-4 grid gap-4"></div>
+          </section>
+
+          <section id="view-bookmarks" class="app-view hidden">
+            <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-slate-500">PERSONAL CASE FILE</p><h2 class="mt-1 text-2xl font-semibold">কেস ফোল্ডার</h2><p class="mt-1 text-sm text-slate-400">আপনার সংরক্ষিত আইনি ধারা এক জায়গায়।</p></div>
+              <button id="refresh-bookmarks" class="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/5" type="button">↻ <span class="ml-1">রিফ্রেশ</span></button>
+            </div>
+            <div id="bookmarks-list" class="grid gap-4"></div>
+          </section>
+
+          <section id="view-audit" class="app-view hidden">
+            <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-slate-500">PERSONAL ACTIVITY</p><h2 class="mt-1 text-2xl font-semibold">অনুসন্ধান অডিট লগ</h2><p class="mt-1 text-sm text-slate-400">আপনার অনুসন্ধান ও সংশ্লিষ্ট আইনি সূত্রের ইতিহাস।</p></div>
+              <div class="flex gap-2">
+                <button id="refresh-audit" class="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/5" type="button">↻ <span class="ml-1">রিফ্রেশ</span></button>
+                <a id="audit-csv" class="rounded-xl border border-mint/20 bg-mint/5 px-4 py-2 text-sm text-mint transition hover:bg-mint/10" href="#">CSV ডাউনলোড ↓</a>
+              </div>
+            </div>
+            <div id="audit-list" class="overflow-hidden rounded-2xl border border-white/[.08] bg-panel"></div>
+          </section>
+
+          <footer class="mt-12 border-t border-white/[.07] pt-5 text-xs leading-6 text-slate-600">
+            আইনসাথী আইনি তথ্য খুঁজে পেতে সহায়তা করে, তবে এটি আইনজীবীর মতামত বা আইনি প্রতিনিধিত্ব নয়। <a class="text-slate-400 underline decoration-slate-700 underline-offset-4 hover:text-mint" href="/docs">API ডকুমেন্টেশন</a>
+          </footer>
+        </main>
+      </div>
+    </div>
+
+    <dialog id="draft-modal" class="w-[min(94vw,850px)] max-w-none rounded-3xl border border-white/10 bg-panel p-0 text-slate-100 shadow-2xl">
+      <div class="flex items-start justify-between gap-4 border-b border-white/[.08] px-5 py-4 sm:px-7">
+        <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-mint">LEGAL DOCUMENT BUILDER</p><h2 class="mt-1 text-xl font-semibold">আইনি আবেদন ড্রাফট</h2><p id="draft-description" class="mt-1 text-xs text-slate-400">প্রাপ্ত আইনি সূত্রের ভিত্তিতে তৈরি খসড়া।</p></div>
+        <button id="draft-close" class="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white" type="button" aria-label="বন্ধ করুন">✕</button>
+      </div>
+      <div class="p-5 sm:p-7">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <label for="draft-type" class="text-sm text-slate-300">ডকুমেন্টের ধরন</label>
+          <select id="draft-type" class="field w-auto px-3 py-2 text-sm">
+            <option value="complaint">লিখিত অভিযোগ</option>
+            <option value="legal_notice">আইনগত নোটিশ</option>
+          </select>
+        </div>
+        <div id="draft-loading" class="hidden rounded-xl border border-mint/10 bg-mint/[.04] p-4 text-sm text-mint" role="status">আইনি সূত্র যাচাই করে খসড়া তৈরি হচ্ছে…</div>
+        <div id="draft-error" class="mb-3 hidden rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-200" role="alert"></div>
+        <label for="draft-text" class="sr-only">সম্পাদনাযোগ্য আইনি খসড়া</label>
+        <textarea id="draft-text" class="field scrollbar-thin min-h-[48vh] resize-y p-4 text-sm leading-8" placeholder="খসড়া এখানে দেখা যাবে এবং সম্পাদনা করা যাবে।"></textarea>
+        <p id="draft-disclaimer" class="mt-3 text-xs leading-5 text-amber-200/70"></p>
+        <div class="mt-4 flex flex-col-reverse justify-between gap-3 sm:flex-row sm:items-center">
+          <p class="text-xs text-slate-500">জমা দেওয়ার আগে নাম, তারিখ, ঘটনা ও সংযুক্তি যাচাই করুন।</p>
+          <div class="flex gap-2">
+            <button id="draft-copy" class="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-200 transition hover:bg-white/5" type="button">কপি করুন</button>
+            <button id="draft-download" class="rounded-xl bg-mint px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-300" type="button">.txt ডাউনলোড</button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <script>
+      const API = "/api";
+      const ROLE_NAMES = { citizen: "নাগরিক", lawyer: "আইনজীবী", student: "শিক্ষার্থী" };
+      const DOMAIN_NAMES = {
+        all: "সকল আইন",
+        labour_law: "বাংলাদেশ শ্রম আইন, ২০০৬",
+        consumer_rights: "ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯",
+        cyber_law: "সাইবার সুরক্ষা আইন, ২০২৬"
+      };
+      let currentUser = null;
+      let selectedDomain = "all";
+      let selectedSearchQuery = "";
+      let speechRecognition = null;
+      let finalTranscript = "";
+      let draftObjectUrl = null;
+      let activeDraftResult = null;
+
+      const byId = (id) => document.getElementById(id);
+      const authView = byId("auth-view");
+      const appView = byId("app-view");
+      const loginForm = byId("login-form");
+      const registerForm = byId("register-form");
+      const authError = byId("auth-error");
+      const authSuccess = byId("auth-success");
+      const searchForm = byId("search-form");
+      const searchQuery = byId("search-query");
+      const searchResults = byId("search-results");
+      const searchMessage = byId("search-message");
+      const draftModal = byId("draft-modal");
+
+      async function apiRequest(path, options = {}) {
+        const response = await fetch(`${API}${path}`, {
+          ...options,
+          headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+        });
+        const type = response.headers.get("content-type") || "";
+        const payload = type.includes("application/json") ? await response.json() : null;
+        if (!response.ok) {
+          const detail = payload?.detail || payload?.message || `অনুরোধটি সম্পন্ন হয়নি (${response.status})`;
+          throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+        }
+        return payload;
       }
 
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        message.textContent = "";
-        results.replaceChildren();
-        button.disabled = true;
-        button.textContent = "অনুসন্ধান চলছে…";
+      function showNotice(element, text, kind = "success") {
+        element.textContent = text;
+        element.classList.remove("hidden", "border-emerald-400/20", "bg-emerald-400/10", "text-emerald-200", "border-rose-400/20", "bg-rose-400/10", "text-rose-200");
+        if (kind === "error") {
+          element.classList.add("border-rose-400/20", "bg-rose-400/10", "text-rose-200");
+        } else {
+          element.classList.add("border-emerald-400/20", "bg-emerald-400/10", "text-emerald-200");
+        }
+      }
+
+      function clearAuthNotice() {
+        authError.classList.add("hidden");
+        authSuccess.classList.add("hidden");
+        authError.textContent = "";
+        authSuccess.textContent = "";
+      }
+
+      function switchAuthTab(tab) {
+        const loginActive = tab === "login";
+        loginForm.classList.toggle("hidden", !loginActive);
+        registerForm.classList.toggle("hidden", loginActive);
+        byId("login-tab").classList.toggle("bg-white/10", loginActive);
+        byId("login-tab").classList.toggle("text-white", loginActive);
+        byId("login-tab").classList.toggle("text-slate-400", !loginActive);
+        byId("register-tab").classList.toggle("bg-white/10", !loginActive);
+        byId("register-tab").classList.toggle("text-white", !loginActive);
+        byId("register-tab").classList.toggle("text-slate-400", loginActive);
+        byId("login-tab").setAttribute("aria-selected", String(loginActive));
+        byId("register-tab").setAttribute("aria-selected", String(!loginActive));
+        clearAuthNotice();
+      }
+
+      function persistUser(user) {
+        currentUser = user;
         try {
-          const response = await fetch("/api/search", {
+          localStorage.setItem("legal-assistant-user", JSON.stringify(user));
+        } catch {
+          showNotice(byId("global-message"), "এই ব্রাউজারে সেশন সংরক্ষণ করা যায়নি; পৃষ্ঠা বন্ধ করলে আবার লগইন করতে হবে।", "error");
+        }
+        renderApp();
+      }
+
+      function renderApp() {
+        if (!currentUser) {
+          authView.classList.remove("hidden");
+          appView.classList.add("hidden");
+          return;
+        }
+        authView.classList.add("hidden");
+        appView.classList.remove("hidden");
+        const name = currentUser.full_name || "ব্যবহারকারী";
+        const initial = Array.from(name.trim())[0] || "আ";
+        byId("welcome-name").textContent = name;
+        byId("sidebar-name").textContent = name;
+        byId("sidebar-role").textContent = ROLE_NAMES[currentUser.role] || ROLE_NAMES.citizen;
+        byId("welcome-role").textContent = `${ROLE_NAMES[currentUser.role] || ROLE_NAMES.citizen} · সক্রিয়`;
+        byId("user-avatar").textContent = initial;
+        byId("audit-csv").href = `${API}/audit-logs/csv?user_id=${encodeURIComponent(currentUser.id)}`;
+        loadBookmarkCount();
+      }
+
+      function logout() {
+        stopVoiceInput();
+        currentUser = null;
+        try { localStorage.removeItem("legal-assistant-user"); } catch { /* Storage may be disabled. */ }
+        clearAuthNotice();
+        renderApp();
+      }
+
+      async function submitLogin(event) {
+        event.preventDefault();
+        clearAuthNotice();
+        const button = byId("login-submit");
+        button.disabled = true;
+        try {
+          const result = await apiRequest("/login", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              query: form.query.value,
-              domain: form.domain.value,
-              top_k: 3
+              email: byId("login-email").value.trim(),
+              password: byId("login-password").value
             })
           });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.detail || "অনুসন্ধান সম্পন্ন হয়নি।");
-          message.textContent = data.message || "";
-          for (const item of data.results || []) {
-            const card = document.createElement("article");
-            card.className = "result";
-            addText(card, "h2", "", `ধারা ${item.section_number}: ${item.section_title}`);
-            addText(
-              card,
-              "p",
-              "meta",
-              `${item.act_name || item.domain_bn || ""} · ${item.legal_status} · আত্মবিশ্বাস ${item.confidence}%`
-            );
-            addText(card, "p", "content", item.content);
-            results.append(card);
-          }
+          if (!result?.user?.id) throw new Error("লগইন উত্তরে ব্যবহারকারীর তথ্য পাওয়া যায়নি।");
+          persistUser(result.user);
         } catch (error) {
-          message.textContent = error instanceof Error ? error.message : "অনুসন্ধান সম্পন্ন হয়নি।";
+          showNotice(authError, error.message || "লগইন করা যায়নি।", "error");
         } finally {
           button.disabled = false;
-          button.textContent = "প্রাসঙ্গিক ধারা খুঁজুন";
+        }
+      }
+
+      async function submitRegistration(event) {
+        event.preventDefault();
+        clearAuthNotice();
+        const password = byId("register-password").value;
+        const confirmation = byId("register-confirm").value;
+        if (password !== confirmation) {
+          showNotice(authError, "পাসওয়ার্ড এবং নিশ্চিতকরণ পাসওয়ার্ড মিলছে না।", "error");
+          return;
+        }
+        const button = byId("register-submit");
+        button.disabled = true;
+        try {
+          const result = await apiRequest("/register", {
+            method: "POST",
+            body: JSON.stringify({
+              full_name: byId("register-name").value.trim(),
+              email: byId("register-email").value.trim(),
+              password,
+              confirm_password: confirmation,
+              role: byId("register-role").value
+            })
+          });
+          const email = byId("register-email").value.trim();
+          registerForm.reset();
+          byId("login-email").value = email;
+          switchAuthTab("login");
+          showNotice(authSuccess, result?.message || "নিবন্ধন সফল হয়েছে। এখন লগইন করুন।");
+        } catch (error) {
+          showNotice(authError, error.message || "নিবন্ধন করা যায়নি।", "error");
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      function setActiveView(viewName) {
+        const names = { search: "অনুসন্ধান", bookmarks: "কেস ফোল্ডার", audit: "অডিট লগ" };
+        document.querySelectorAll(".app-view").forEach((section) => {
+          section.classList.toggle("hidden", section.id !== `view-${viewName}`);
+        });
+        document.querySelectorAll(".nav-button").forEach((button) => {
+          const active = button.dataset.view === viewName;
+          button.classList.toggle("bg-white/[.06]", active);
+          button.classList.toggle("text-slate-200", active);
+          button.classList.toggle("text-slate-400", !active);
+          if (active) button.setAttribute("aria-current", "page");
+          else button.removeAttribute("aria-current");
+        });
+        byId("breadcrumb").textContent = names[viewName] || names.search;
+        if (viewName === "bookmarks") loadBookmarks();
+        if (viewName === "audit") loadAuditLogs();
+      }
+
+      function setSearchMessage(text, kind = "info") {
+        searchMessage.textContent = text || "";
+        searchMessage.classList.toggle("hidden", !text);
+        searchMessage.classList.remove("border-rose-400/20", "bg-rose-400/10", "text-rose-200", "border-amber-300/20", "bg-amber-300/10", "text-amber-100", "border-sky-300/20", "bg-sky-300/10", "text-sky-100");
+        if (!text) return;
+        if (kind === "error") searchMessage.classList.add("border-rose-400/20", "bg-rose-400/10", "text-rose-200");
+        else if (kind === "warning") searchMessage.classList.add("border-amber-300/20", "bg-amber-300/10", "text-amber-100");
+        else searchMessage.classList.add("border-sky-300/20", "bg-sky-300/10", "text-sky-100");
+      }
+
+      function makeText(tag, className, value) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        node.textContent = value == null ? "" : String(value);
+        return node;
+      }
+
+      function statusClass(status) {
+        return {
+          Active: "border-emerald-300/20 bg-emerald-300/10 text-emerald-200",
+          Amended: "border-amber-300/20 bg-amber-300/10 text-amber-100",
+          Repealed: "border-rose-300/20 bg-rose-300/10 text-rose-200"
+        }[status] || "border-slate-300/20 bg-slate-300/10 text-slate-200";
+      }
+
+      function renderSearchResults(results) {
+        searchResults.replaceChildren();
+        byId("result-count").classList.toggle("hidden", !results.length);
+        byId("result-count").textContent = `${results.length}টি সূত্র`;
+        if (!results.length) return;
+        results.forEach((result) => {
+          const card = document.createElement("article");
+          card.className = "glass overflow-hidden rounded-2xl";
+          const top = document.createElement("div");
+          top.className = "flex flex-col justify-between gap-3 border-b border-white/[.07] px-4 py-4 sm:flex-row sm:items-start sm:px-5";
+          const identity = document.createElement("div");
+          identity.className = "min-w-0";
+          const badges = document.createElement("div");
+          badges.className = "mb-2 flex flex-wrap gap-2";
+          const domain = makeText("span", "rounded-full border border-sky-300/20 bg-sky-300/10 px-2.5 py-1 text-[11px] font-medium text-sky-200", result.domain_bn || DOMAIN_NAMES[result.domain] || "আইনি ক্ষেত্র");
+          const act = makeText("span", "rounded-full border border-white/10 bg-white/[.03] px-2.5 py-1 text-[11px] text-slate-300", result.act_name || DOMAIN_NAMES[result.domain] || "বাংলাদেশের আইন");
+          badges.append(domain, act);
+          const title = makeText("h3", "text-lg font-semibold leading-snug text-white", `ধারা ${result.section_number || "—"}: ${result.section_title || "আইনি বিধান"}`);
+          identity.append(badges, title);
+          const status = makeText("span", `w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(result.legal_status)}`, result.legal_status || "Active");
+          top.append(identity, status);
+
+          const body = document.createElement("div");
+          body.className = "px-4 py-4 sm:px-5";
+          const content = makeText("p", "whitespace-pre-wrap break-words text-sm leading-7 text-slate-300", result.content);
+          body.append(content);
+
+          const meta = document.createElement("div");
+          meta.className = "mt-4 grid gap-3 rounded-xl border border-white/[.06] bg-black/10 p-3 sm:grid-cols-[1fr_auto] sm:items-center";
+          const provenance = makeText("p", "text-xs leading-5 text-slate-400", `সংশোধনী সূত্র: ${result.amendment_provenance || "উৎসে নির্দিষ্ট করা নেই"}`);
+          const score = document.createElement("div");
+          score.className = "min-w-36";
+          const scoreLabels = document.createElement("div");
+          scoreLabels.className = "mb-1 flex justify-between text-[11px]";
+          scoreLabels.append(makeText("span", "text-slate-500", "প্রাসঙ্গিকতা"), makeText("span", "font-semibold text-mint", `${result.confidence ?? 0}%`));
+          const track = document.createElement("div");
+          track.className = "h-1.5 overflow-hidden rounded-full bg-slate-700/70";
+          const bar = document.createElement("div");
+          bar.className = "h-full rounded-full bg-gradient-to-r from-mint to-sky";
+          bar.style.width = `${Math.max(0, Math.min(100, Number(result.confidence) || 0))}%`;
+          track.append(bar);
+          score.append(scoreLabels, track);
+          meta.append(provenance, score);
+          body.append(meta);
+
+          const actions = document.createElement("div");
+          actions.className = "mt-4 flex flex-wrap gap-2";
+          const bookmarkButton = makeText("button", "rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-mint/30 hover:bg-mint/[.05]", "◇  কেস ফোল্ডারে সেভ করুন");
+          bookmarkButton.type = "button";
+          bookmarkButton.addEventListener("click", () => saveBookmark(result, bookmarkButton));
+          const draftButton = makeText("button", "rounded-lg bg-white/[.07] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10", "✎  আইনি আবেদন ড্রাফট করুন");
+          draftButton.type = "button";
+          draftButton.addEventListener("click", () => generateDraft(result));
+          actions.append(bookmarkButton, draftButton);
+          body.append(actions);
+          card.append(top, body);
+          searchResults.append(card);
+        });
+      }
+
+      async function runSearch() {
+        const query = searchQuery.value.trim();
+        if (!query) {
+          searchQuery.focus();
+          return;
+        }
+        selectedSearchQuery = query;
+        const button = byId("search-submit");
+        button.disabled = true;
+        byId("search-submit-label").textContent = "সূত্র খোঁজা হচ্ছে…";
+        byId("results-caption").textContent = `${DOMAIN_NAMES[selectedDomain]} · ${query}`;
+        searchResults.replaceChildren();
+        setSearchMessage("");
+        try {
+          const result = await apiRequest("/search", {
+            method: "POST",
+            body: JSON.stringify({
+              query,
+              domain: selectedDomain,
+              top_k: Number(byId("top-k").value),
+              user_id: currentUser?.id
+            })
+          });
+          renderSearchResults(result.results || []);
+          if (result.status === "rejected") setSearchMessage(result.message, "warning");
+          else if (result.status === "empty") setSearchMessage(result.message || "কোনো সূত্র পাওয়া যায়নি।", "warning");
+          else if (result.status === "low_confidence") setSearchMessage(result.message || "মিলের মান কম; প্রশ্নটি আরও নির্দিষ্ট করুন।", "warning");
+          else if ((result.results || []).length) setSearchMessage(`প্রাসঙ্গিক সূত্র পাওয়া গেছে · সামগ্রিক আত্মবিশ্বাস ${result.confidence}%`, "info");
+          else setSearchMessage("এই অনুসন্ধানে কোনো ফলাফল পাওয়া যায়নি।", "warning");
+        } catch (error) {
+          setSearchMessage(error.message || "অনুসন্ধান সম্পন্ন হয়নি।", "error");
+        } finally {
+          button.disabled = false;
+          byId("search-submit-label").textContent = "ধারা খুঁজুন";
+        }
+      }
+
+      async function saveBookmark(result, button) {
+        if (!currentUser) return;
+        button.disabled = true;
+        const originalText = button.textContent;
+        button.textContent = "সংরক্ষণ হচ্ছে…";
+        try {
+          const response = await apiRequest("/bookmarks", {
+            method: "POST",
+            body: JSON.stringify({
+              user_id: currentUser.id,
+              domain_bn: result.domain_bn || DOMAIN_NAMES[result.domain] || "বাংলাদেশের আইন",
+              act_name: result.act_name || DOMAIN_NAMES[result.domain] || "বাংলাদেশের আইন",
+              section_number: String(result.section_number || "—"),
+              section_title: result.section_title || "আইনি বিধান",
+              content: result.content || "",
+              legal_status: result.legal_status || "Active"
+            })
+          });
+          button.textContent = "✓  কেস ফোল্ডারে সংরক্ষিত";
+          button.classList.add("border-emerald-300/20", "text-emerald-200");
+          showGlobalMessage(response.message || "ধারাটি কেস ফোল্ডারে সংরক্ষণ করা হয়েছে।");
+          loadBookmarkCount();
+        } catch (error) {
+          button.textContent = originalText;
+          showGlobalMessage(error.message || "বুকমার্ক সংরক্ষণ করা যায়নি।", true);
+          button.disabled = false;
+        }
+      }
+
+      async function generateDraft(result) {
+        activeDraftResult = result;
+        if (!draftModal.open) draftModal.showModal();
+        await loadDraft();
+      }
+
+      async function loadDraft() {
+        if (!activeDraftResult) return;
+        byId("draft-text").value = "";
+        byId("draft-error").classList.add("hidden");
+        byId("draft-loading").classList.remove("hidden");
+        byId("draft-disclaimer").textContent = "";
+        byId("draft-description").textContent = `ধারা ${activeDraftResult.section_number || ""} · ${activeDraftResult.act_name || activeDraftResult.domain_bn || ""}`;
+        try {
+          const response = await apiRequest("/generate-draft", {
+            method: "POST",
+            body: JSON.stringify({
+              query: selectedSearchQuery,
+              domain: selectedDomain,
+              document_type: byId("draft-type").value,
+              applicant_name: currentUser?.full_name || "আবেদনকারীর নাম",
+              user_id: currentUser?.id
+            })
+          });
+          byId("draft-text").value = response.draft || "";
+          byId("draft-disclaimer").textContent = response.disclaimer || "";
+        } catch (error) {
+          byId("draft-error").textContent = error.message || "ড্রাফট তৈরি করা যায়নি।";
+          byId("draft-error").classList.remove("hidden");
+        } finally {
+          byId("draft-loading").classList.add("hidden");
+        }
+      }
+
+      function showGlobalMessage(text, isError = false) {
+        const element = byId("global-message");
+        element.textContent = text;
+        element.classList.remove("hidden", "border-emerald-300/20", "bg-emerald-300/10", "text-emerald-100", "border-rose-300/20", "bg-rose-300/10", "text-rose-100");
+        element.classList.add(...(isError
+          ? ["border-rose-300/20", "bg-rose-300/10", "text-rose-100"]
+          : ["border-emerald-300/20", "bg-emerald-300/10", "text-emerald-100"]));
+        window.setTimeout(() => element.classList.add("hidden"), 5000);
+      }
+
+      async function loadBookmarkCount() {
+        if (!currentUser) return;
+        try {
+          const items = await apiRequest(`/bookmarks?user_id=${encodeURIComponent(currentUser.id)}`);
+          byId("bookmark-count").textContent = String(items.length).replace(/\d/g, (digit) => "০১২৩৪৫৬৭৮৯"[digit]);
+        } catch {
+          byId("bookmark-count").textContent = "—";
+        }
+      }
+
+      async function loadBookmarks() {
+        const list = byId("bookmarks-list");
+        list.replaceChildren(makeText("div", "glass rounded-2xl p-5 text-sm text-slate-400", "আপনার সংরক্ষিত ধারা লোড হচ্ছে…"));
+        try {
+          const bookmarks = await apiRequest(`/bookmarks?user_id=${encodeURIComponent(currentUser.id)}`);
+          list.replaceChildren();
+          byId("bookmark-count").textContent = String(bookmarks.length).replace(/\d/g, (digit) => "০১২৩৪৫৬৭৮৯"[digit]);
+          if (!bookmarks.length) {
+            list.append(makeText("div", "glass rounded-2xl border-dashed p-10 text-center text-sm text-slate-400", "এখনও কোনো ধারা সেভ করা হয়নি। অনুসন্ধানের ফলাফল থেকে “কেস ফোল্ডারে সেভ করুন” নির্বাচন করুন।"));
+            return;
+          }
+          bookmarks.forEach((bookmark) => {
+            const card = document.createElement("article");
+            card.className = "glass rounded-2xl p-4 sm:p-5";
+            const header = document.createElement("div");
+            header.className = "flex flex-wrap items-start justify-between gap-3";
+            const title = makeText("h3", "font-semibold text-white", `ধারা ${bookmark.section_number}: ${bookmark.section_title}`);
+            const status = makeText("span", `rounded-full border px-3 py-1 text-xs ${statusClass(bookmark.legal_status)}`, bookmark.legal_status);
+            header.append(title, status);
+            card.append(header);
+            card.append(makeText("p", "mt-2 text-xs text-slate-500", `${bookmark.domain_bn} · ${bookmark.act_name} · ${bookmark.created_at || ""}`));
+            card.append(makeText("p", "mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-300", bookmark.content));
+            const remove = makeText("button", "mt-4 rounded-lg border border-rose-300/15 px-3 py-2 text-xs text-rose-200 transition hover:bg-rose-300/10", "মুছে ফেলুন");
+            remove.type = "button";
+            remove.addEventListener("click", () => deleteBookmark(bookmark.id, remove));
+            card.append(remove);
+            list.append(card);
+          });
+        } catch (error) {
+          list.replaceChildren(makeText("div", "rounded-2xl border border-rose-400/20 bg-rose-400/10 p-5 text-sm text-rose-200", error.message || "বুকমার্ক লোড করা যায়নি।"));
+        }
+      }
+
+      async function deleteBookmark(bookmarkId, button) {
+        if (!currentUser || !window.confirm("এই বুকমার্কটি মুছে ফেলবেন?")) return;
+        button.disabled = true;
+        try {
+          await apiRequest(`/bookmarks/${encodeURIComponent(bookmarkId)}?user_id=${encodeURIComponent(currentUser.id)}`, { method: "DELETE" });
+          showGlobalMessage("বুকমার্কটি মুছে ফেলা হয়েছে।");
+          await loadBookmarks();
+        } catch (error) {
+          showGlobalMessage(error.message || "বুকমার্ক মুছে ফেলা যায়নি।", true);
+          button.disabled = false;
+        }
+      }
+
+      async function loadAuditLogs() {
+        const list = byId("audit-list");
+        list.replaceChildren(makeText("div", "p-5 text-sm text-slate-400", "অডিট লগ লোড হচ্ছে…"));
+        try {
+          const response = await apiRequest(`/audit-logs?user_id=${encodeURIComponent(currentUser.id)}&limit=100`);
+          const logs = response.logs || [];
+          list.replaceChildren();
+          if (!logs.length) {
+            list.append(makeText("div", "p-10 text-center text-sm text-slate-400", "আপনার কোনো অনুসন্ধান লগ নেই।"));
+            return;
+          }
+          const tableWrap = document.createElement("div");
+          tableWrap.className = "scrollbar-thin overflow-x-auto";
+          const table = document.createElement("table");
+          table.className = "w-full min-w-[720px] border-collapse text-left text-sm";
+          const head = document.createElement("thead");
+          head.className = "bg-white/[.035] text-xs text-slate-400";
+          const headRow = document.createElement("tr");
+          ["সময়", "অনুসন্ধান", "Retrieved sections", "আইনি অবস্থা"].forEach((label) => {
+            const th = makeText("th", "px-4 py-3 font-medium", label);
+            th.scope = "col";
+            headRow.append(th);
+          });
+          head.append(headRow);
+          const tbody = document.createElement("tbody");
+          logs.forEach((log) => {
+            const row = document.createElement("tr");
+            row.className = "border-t border-white/[.06] align-top";
+            row.append(
+              makeText("td", "whitespace-nowrap px-4 py-4 text-xs text-slate-500", log.created_at || ""),
+              makeText("td", "max-w-sm px-4 py-4 text-slate-200", log.query_text || ""),
+              makeText("td", "px-4 py-4 text-slate-400", log.retrieved_sections || "—"),
+              makeText("td", "px-4 py-4 text-xs text-slate-300", log.evidence_status || "—")
+            );
+            tbody.append(row);
+          });
+          table.append(head, tbody);
+          tableWrap.append(table);
+          list.append(tableWrap);
+        } catch (error) {
+          list.replaceChildren(makeText("div", "p-5 text-sm text-rose-200", error.message || "অডিট লগ লোড করা যায়নি।"));
+        }
+      }
+
+      function startVoiceInput() {
+        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Recognition) {
+          setSearchMessage("এই ব্রাউজারে Speech Recognition সমর্থিত নয়। Chrome বা Edge-এ চেষ্টা করুন।", "warning");
+          return;
+        }
+        if (speechRecognition) {
+          speechRecognition.stop();
+          return;
+        }
+        finalTranscript = "";
+        speechRecognition = new Recognition();
+        speechRecognition.lang = "bn-BD";
+        speechRecognition.continuous = false;
+        speechRecognition.interimResults = true;
+        speechRecognition.maxAlternatives = 1;
+        speechRecognition.onstart = () => {
+          byId("voice-dot").classList.add("voice-pulse", "bg-rose-400");
+          byId("voice-dot").classList.remove("bg-slate-500");
+          byId("voice-status").classList.remove("hidden");
+          byId("voice-label").textContent = "থামাতে চাপুন";
+          setSearchMessage("");
+        };
+        speechRecognition.onresult = (event) => {
+          let interim = "";
+          for (let index = event.resultIndex; index < event.results.length; index += 1) {
+            const text = event.results[index][0].transcript;
+            if (event.results[index].isFinal) finalTranscript += `${text} `;
+            else interim += text;
+          }
+          searchQuery.value = `${finalTranscript}${interim}`.trim();
+        };
+        speechRecognition.onerror = (event) => {
+          const messages = {
+            "not-allowed": "মাইক্রোফোন ব্যবহারের অনুমতি দিন, তারপর আবার চেষ্টা করুন।",
+            "no-speech": "কোনো কথা শনাক্ত হয়নি। আবার বলুন।",
+            "network": "ভয়েস শনাক্তকরণে নেটওয়ার্ক সমস্যা হয়েছে।"
+          };
+          setSearchMessage(messages[event.error] || "ভয়েস ইনপুট চালু করা যায়নি।", "warning");
+        };
+        speechRecognition.onend = () => {
+          const shouldSearch = Boolean(finalTranscript.trim());
+          speechRecognition = null;
+          byId("voice-dot").classList.remove("voice-pulse", "bg-rose-400");
+          byId("voice-dot").classList.add("bg-slate-500");
+          byId("voice-status").classList.add("hidden");
+          byId("voice-label").textContent = "বাংলায় বলুন";
+          if (shouldSearch) runSearch();
+        };
+        try {
+          speechRecognition.start();
+        } catch (error) {
+          speechRecognition = null;
+          setSearchMessage(error.message || "মাইক্রোফোন চালু করা যায়নি।", "warning");
+        }
+      }
+
+      function stopVoiceInput() {
+        if (speechRecognition) speechRecognition.stop();
+      }
+
+      byId("login-tab").addEventListener("click", () => switchAuthTab("login"));
+      byId("register-tab").addEventListener("click", () => switchAuthTab("register"));
+      loginForm.addEventListener("submit", submitLogin);
+      registerForm.addEventListener("submit", submitRegistration);
+      document.querySelectorAll(".logout-button").forEach((button) => button.addEventListener("click", logout));
+      document.querySelectorAll(".nav-button").forEach((button) => button.addEventListener("click", () => setActiveView(button.dataset.view)));
+      document.querySelectorAll(".domain-pill").forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedDomain = button.dataset.domain;
+          document.querySelectorAll(".domain-pill").forEach((pill) => pill.setAttribute("aria-pressed", String(pill === button)));
+        });
+      });
+      searchForm.addEventListener("submit", (event) => { event.preventDefault(); runSearch(); });
+      byId("voice-button").addEventListener("click", startVoiceInput);
+      byId("refresh-bookmarks").addEventListener("click", loadBookmarks);
+      byId("refresh-audit").addEventListener("click", loadAuditLogs);
+      byId("draft-close").addEventListener("click", () => draftModal.close());
+      draftModal.addEventListener("click", (event) => { if (event.target === draftModal) draftModal.close(); });
+      byId("draft-type").addEventListener("change", () => {
+        if (draftModal.open) loadDraft();
+      });
+      byId("draft-copy").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(byId("draft-text").value);
+          showGlobalMessage("ড্রাফট ক্লিপবোর্ডে কপি করা হয়েছে।");
+        } catch {
+          byId("draft-text").focus();
+          byId("draft-text").select();
+          showGlobalMessage("কপি করা যায়নি; খসড়াটি নির্বাচন করা হয়েছে।", true);
         }
       });
+      byId("draft-download").addEventListener("click", () => {
+        const content = byId("draft-text").value;
+        if (!content.trim()) {
+          showGlobalMessage("ডাউনলোডের জন্য আগে একটি ড্রাফট তৈরি করুন।", true);
+          return;
+        }
+        if (draftObjectUrl) URL.revokeObjectURL(draftObjectUrl);
+        draftObjectUrl = URL.createObjectURL(new Blob(["\ufeff", content], { type: "text/plain;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = draftObjectUrl;
+        link.download = "আইনি-আবেদন-খসড়া.txt";
+        document.body.append(link);
+        link.click();
+        link.remove();
+      });
+
+      try {
+        const savedUser = JSON.parse(localStorage.getItem("legal-assistant-user") || "null");
+        if (savedUser && savedUser.id && savedUser.full_name) currentUser = savedUser;
+      } catch {
+        localStorage.removeItem("legal-assistant-user");
+      }
+      renderApp();
     </script>
   </body>
 </html>
