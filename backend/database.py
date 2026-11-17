@@ -50,7 +50,28 @@ def init_db():
         )
     """)
 
-    # ৩. ফিডব্যাক টেবিল
+    # ৩. ব্যবহারকারীর বুকমার্ক করা ধারা
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bookmarks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            domain_bn TEXT,
+            act_name TEXT NOT NULL,
+            section_number TEXT NOT NULL,
+            section_title TEXT,
+            content TEXT,
+            legal_status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            UNIQUE (user_id, act_name, section_number)
+        )
+    """)
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_user_act_section
+        ON bookmarks (user_id, act_name, section_number)
+    """)
+
+    # ৪. ফিডব্যাক টেবিল
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,6 +138,66 @@ def get_audit_trail(user_id=None, role="citizen", limit=50):
     except Exception as e:
         print(f"[!] Get audit error: {e}")
         return []
+
+
+def add_bookmark(user_id, domain_bn, act_name, section_number, section_title, content, legal_status):
+    """গুরুত্বপূর্ণ ধারা ইউজারের কেস ফোল্ডারে সেভ করে।"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO bookmarks (
+                user_id, domain_bn, act_name, section_number,
+                section_title, content, legal_status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user_id, domain_bn, act_name, section_number,
+            section_title, content, legal_status,
+        ))
+        conn.commit()
+        return True, "ধারাটি কেস ফোল্ডারে সংরক্ষিত হয়েছে!"
+    except sqlite3.IntegrityError:
+        cursor.execute("""
+            SELECT 1 FROM bookmarks
+            WHERE user_id = ? AND act_name = ? AND section_number = ?
+        """, (user_id, act_name, section_number))
+        if cursor.fetchone():
+            return False, "এই ধারাটি ইতিমধ্যেই আপনার কেস ফোল্ডারে সংরক্ষিত আছে।"
+        raise
+    finally:
+        conn.close()
+
+
+def get_user_bookmarks(user_id):
+    """নির্দিষ্ট ইউজারের সব বুকমার্ক করা ধারা নতুন থেকে পুরোনো ক্রমে রিটার্ন করে।"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, domain_bn, act_name, section_number, section_title,
+                   content, legal_status, created_at
+            FROM bookmarks
+            WHERE user_id = ?
+            ORDER BY created_at DESC, id DESC
+        """, (user_id,))
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def delete_bookmark(bookmark_id, user_id):
+    """ইউজারের নির্দিষ্ট বুকমার্ক মুছে ফেলে।"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM bookmarks WHERE id = ? AND user_id = ?",
+            (bookmark_id, user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
