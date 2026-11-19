@@ -3,6 +3,7 @@
 import csv
 import importlib.util
 import io
+import json
 import logging
 import os
 import re
@@ -10,12 +11,14 @@ import sys
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, AsyncIterator, Literal
+from typing import Annotated, Any, AsyncIterator, Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
 BASE_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = BASE_DIR / "backend"
@@ -25,14 +28,27 @@ FRONTEND_INDEX = BASE_DIR / "frontend" / "index.html"
 sys.path.insert(0, str(BACKEND_DIR))
 
 from auth import authenticate_user, register_user, validate_user_input
+from case_advisor import build_case_action_plan, summarize_source
 from database import (
     add_bookmark,
     delete_bookmark,
+    delete_uploaded_source,
     get_audit_trail,
     get_db_connection,
+    get_source_by_id,
+    get_user_sources,
     get_user_bookmarks,
     init_db,
     log_audit_trail,
+    save_uploaded_source,
+)
+from domain_guard import (
+    DOMAIN_LABELS,
+    DOMAIN_SEMANTIC_ANCHORS,
+    MAX_COSINE_DISTANCE,
+    OUT_OF_SCOPE_PDF_MESSAGE,
+    inspect_domain_text,
+    validate_pdf_domain,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,7 +62,6 @@ DOMAIN_MAX_SECTIONS: dict[str, tuple[int, str]] = {
     "all": (353, "সংশ্লিষ্ট আইনসমূহ"),
 }
 BENGALI_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789")
-MAX_COSINE_DISTANCE = 0.52
 OUT_OF_SCOPE_MESSAGE = (
     "দুঃখিত, আমাদের সংকলিত ৫০৮টি আইনি ধারার (বাংলাদেশ শ্রম আইন ২০০৬, "
     "ভোক্তা অধিকার সংরক্ষণ আইন ২০০৯ এবং সাইবার সুরক্ষা আইন ২০২৬) মধ্যে "
@@ -59,27 +74,6 @@ CHAT_REPLY = (
     "এবং সাইবার সুরক্ষা আইন ২০২৬-এর সংকলিত ধারার ভিত্তিতে উত্তর দিই। "
     "আপনি স্বাভাবিক বাংলায় লিখে বা bn-BD ভয়েস ইনপুটে প্রশ্ন করতে পারেন।"
 )
-DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
-    "labour_law": (
-        "শ্রম", "শ্রমিক", "কর্মচার", "চাকরি", "চাকুরী", "নিয়োগ", "নিয়োগ",
-        "মজুরি", "বেতন", "ওভারটাইম", "অতিরিক্ত কাজ", "মাতৃত্ব", "প্রসূতি",
-        "ছুটি", "কারখানা", "কর্মঘণ্টা", "কর্মঘন্টা", "labour", "labor",
-        "worker", "employee", "employment", "overtime", "maternity leave",
-        "wage", "salary",
-    ),
-    "consumer_rights": (
-        "ভোক্তা", "পণ্য", "দ্রব্য", "মেয়াদোত্তীর্ণ", "মেয়াদোত্তীর্ণ", "ভেজাল",
-        "নকল", "ক্রেতা", "বিক্রেতা", "বিক্রি", "বিক্রয়", "বিক্রয়", "মূল্য",
-        "দাম", "ভোক্তা অধিকার", "consumer", "product", "expired", "counterfeit",
-        "adulterated", "seller", "buyer", "price",
-    ),
-    "cyber_law": (
-        "সাইবার", "অনলাইন", "ইন্টারনেট", "হ্যাক", "বুলিং", "সামাজিক মাধ্যম",
-        "তথ্যপ্রযুক্তি", "তথ্য-উপাত্ত", "তথ্য উপাত্ত", "ডিজিটাল", "কম্পিউটার",
-        "সাইবার অপরাধ", "cyber", "online", "internet", "hack", "bullying",
-        "social media", "phishing", "computer", "data breach",
-    ),
-}
 CHAT_INTENTS = (
     "হ্যালো", "হাই", "সালাম", "আসসালামু আলাইকুম",
     "তুমি কে", "আপনি কে", "কিভাবে সাহায্য করতে পারো", "কীভাবে সাহায্য করতে পারো",
@@ -95,6 +89,11 @@ SEARCH_STOPWORDS = {
 
 _vector_collection = None
 _vector_collection_lock = threading.Lock()
+MAX_SOURCE_FILE_BYTES = 20 * 1024 * 1024
+MAX_SOURCE_PAGES = 100
+MAX_EXTRACTED_TEXT_CHARS = 250_000
+SOURCE_CHUNK_SIZE = 1200
+SOURCE_CHUNK_OVERLAP = 160
 
 
 @asynccontextmanager
@@ -141,6 +140,14 @@ class SearchRequest(BaseModel):
     domain: Domain = "all"
     top_k: int = Field(default=3, ge=1, le=6)
     user_id: int | None = Field(default=None, ge=1)
+
+
+class CaseAnalysisRequest(BaseModel):
+    query: Annotated[str, Field(min_length=1, max_length=3000)]
+    domain: Domain = "all"
+    top_k: int = Field(default=3, ge=1, le=6)
+    user_id: int = Field(ge=1)
+    source_id: int | None = Field(default=None, ge=1)
 
 
 class DraftRequest(BaseModel):
@@ -279,15 +286,6 @@ def _is_chat_intent(query: str) -> bool:
     )
 
 
-def _query_domains(query: str) -> set[str]:
-    normalized = query.casefold()
-    return {
-        domain
-        for domain, terms in DOMAIN_TERMS.items()
-        if any(term in normalized for term in terms)
-    }
-
-
 def _search_terms(text: str) -> set[str]:
     normalized = text.casefold().replace("মেয়াদোত্তীর্ণ", "মেয়াদ উত্তীর্ণ")
     normalized = normalized.replace("মেয়াদোত্তীর্ণ", "মেয়াদ উত্তীর্ণ")
@@ -319,6 +317,7 @@ def _out_of_scope(request: SearchRequest, query: str) -> dict[str, object]:
     )
     return {
         "status": "out_of_scope",
+        "heading": "এই বিষয়ে কোনো তথ্য নেই",
         "message": OUT_OF_SCOPE_MESSAGE,
         "results": [],
     }
@@ -336,35 +335,73 @@ def _section_out_of_range(query: str, domain: str) -> tuple[str, int, str] | Non
     return None
 
 
-def _run_search(request: SearchRequest) -> dict[str, object]:
+def _run_search(
+    request: SearchRequest,
+    context_text: str = "",
+    log_success: bool = True,
+    conversational_intents: bool = True,
+) -> dict[str, object]:
     query = request.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="অনুসন্ধানের জন্য প্রশ্ন লিখুন।")
     if request.user_id is not None:
         _require_user(request.user_id)
 
-    if _is_chat_intent(query):
+    if conversational_intents and _is_chat_intent(query):
         return {"status": "chat", "message": CHAT_REPLY, "results": []}
 
     rejected = _section_out_of_range(query, request.domain)
     if rejected is not None:
         return _out_of_scope(request, query)
 
-    query_domains = _query_domains(query)
     has_section_reference = re.search(r"ধারা\s*[০-৯0-9]+", query) is not None
-    if request.domain == "all":
-        if not query_domains and not has_section_reference:
+    preferred_domain = request.domain if request.domain != "all" else None
+    query_decision = inspect_domain_text(
+        query,
+        preferred_domain=preferred_domain,
+        allow_section_reference=has_section_reference,
+    )
+    if query_decision.reason not in {"supported_domain", "explicit_section_reference"}:
+        if not (
+            context_text
+            and query_decision.reason == "no_supported_domain_signal"
+            and not query_decision.blocked_topics
+        ):
             return _out_of_scope(request, query)
-        search_domains = query_domains or set(DOMAIN_TERMS)
-    else:
-        if query_domains and request.domain not in query_domains:
-            return _out_of_scope(request, query)
-        if not query_domains and not has_section_reference:
-            return _out_of_scope(request, query)
-        search_domains = {request.domain}
+
+    scope_text = " ".join(part for part in (query, context_text) if part).strip()
+    scope_decision = query_decision
+    if query_decision.reason == "no_supported_domain_signal" and context_text:
+        scope_decision = inspect_domain_text(
+            scope_text,
+            preferred_domain=preferred_domain,
+            allow_section_reference=has_section_reference,
+        )
+    if not scope_decision.allowed:
+        return _out_of_scope(request, query)
+    search_domains = (
+        {request.domain}
+        if request.domain != "all"
+        else set(scope_decision.domains)
+    )
+    if not search_domains:
+        return _out_of_scope(request, query)
+
+    retrieval_query = query
+    if (
+        context_text
+        and query_decision.reason == "no_supported_domain_signal"
+        and not has_section_reference
+    ):
+        selected_domain = request.domain
+        retrieval_query = (
+            DOMAIN_SEMANTIC_ANCHORS[selected_domain][0]
+            if selected_domain in DOMAIN_SEMANTIC_ANCHORS
+            else context_text[:3000]
+        )
 
     query_kwargs: dict[str, object] = {
-        "query_texts": [query],
+        "query_texts": [retrieval_query[:3000]],
         "include": ["documents", "metadatas", "distances"],
     }
     if len(search_domains) == 1:
@@ -406,7 +443,7 @@ def _run_search(request: SearchRequest) -> dict[str, object]:
         maximum = DOMAIN_MAX_SECTIONS.get(domain, (0, ""))[0]
         if (
             float(distance) > MAX_COSINE_DISTANCE
-            or domain not in DOMAIN_TERMS
+            or domain not in DOMAIN_LABELS
             or domain not in search_domains
             or numeric_section < 1
             or numeric_section > maximum
@@ -429,7 +466,7 @@ def _run_search(request: SearchRequest) -> dict[str, object]:
         }
         ranked_results.append(
             (
-                _title_relevance(query, metadata.get("section_title")),
+                _title_relevance(retrieval_query, metadata.get("section_title")),
                 float(distance),
                 result,
             )
@@ -441,7 +478,7 @@ def _run_search(request: SearchRequest) -> dict[str, object]:
     ranked_results.sort(key=lambda candidate: (-candidate[0], candidate[1]))
     results = [candidate[2] for candidate in ranked_results[: request.top_k]]
     confidence = float(results[0]["confidence"])
-    if request.user_id is not None:
+    if request.user_id is not None and log_success:
         top = results[0]
         log_audit_trail(
             request.user_id,
@@ -456,6 +493,57 @@ def _run_search(request: SearchRequest) -> dict[str, object]:
         "confidence": confidence,
         "results": results,
     }
+
+
+def _chunk_pdf_pages(page_texts: list[tuple[int, str]]) -> list[dict[str, object]]:
+    chunks: list[dict[str, object]] = []
+    for page_number, page_text in page_texts:
+        start = 0
+        while start < len(page_text):
+            end = min(start + SOURCE_CHUNK_SIZE, len(page_text))
+            if end < len(page_text):
+                boundary = page_text.rfind(" ", start, end)
+                if boundary > start + SOURCE_CHUNK_SIZE // 2:
+                    end = boundary
+            text = page_text[start:end].strip()
+            if text:
+                chunks.append({"page_number": page_number, "text": text})
+            if end >= len(page_text):
+                break
+            start = max(start + 1, end - SOURCE_CHUNK_OVERLAP)
+    return chunks
+
+
+def _source_metadata(source: dict[str, object]) -> dict[str, object]:
+    return {
+        key: source[key]
+        for key in (
+            "id",
+            "filename",
+            "detected_domain",
+            "detected_domain_bn",
+            "page_count",
+            "created_at",
+        )
+    }
+
+
+def _audit_case_analysis(
+    user_id: int, query: str, analysis: dict[str, object]
+) -> None:
+    citations = analysis.get("statute_citations") or []
+    citation_refs = [
+        f"ধারা {citation.get('section_number')}: {citation.get('section_title')}"
+        for citation in citations
+        if isinstance(citation, dict)
+    ]
+    log_audit_trail(
+        user_id,
+        query,
+        " | ".join(citation_refs) or "আইনি সূত্র সংরক্ষিত হয়নি",
+        f"Case Analysis: {analysis.get('case_type_bn', 'Unknown')}",
+        json.dumps(analysis, ensure_ascii=False),
+    )
 
 
 @app.get("/")
@@ -504,7 +592,216 @@ def api_login(request: LoginRequest) -> dict[str, object]:
 
 @app.post("/api/search")
 def api_search(request: SearchRequest) -> dict[str, object]:
-    return _run_search(request)
+    result = _run_search(request, log_success=False)
+    if result.get("status") != "success":
+        return result
+    results = result.get("results") or []
+    analysis = build_case_action_plan(request.query, results)
+    result.update(analysis)
+    if request.user_id is not None:
+        _audit_case_analysis(request.user_id, request.query, analysis)
+    return result
+
+
+@app.post("/api/sources/upload", response_model=None)
+async def api_upload_source(
+    file: Annotated[UploadFile, File()],
+    user_id: Annotated[int, Form(gt=0)],
+) -> dict[str, object] | JSONResponse:
+    _require_user(user_id)
+    filename = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="শুধুমাত্র PDF ফাইল আপলোড করুন।")
+
+    content = await file.read(MAX_SOURCE_FILE_BYTES + 1)
+    if len(content) > MAX_SOURCE_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="PDF ফাইলটি ২০ MB-এর বেশি; ছোট ফাইল আপলোড করুন।",
+        )
+    if not content.lstrip().startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="আপলোড করা ফাইলটি বৈধ PDF নয়।")
+
+    try:
+        reader = PdfReader(io.BytesIO(content), strict=False)
+        if reader.is_encrypted and not reader.decrypt(""):
+            raise HTTPException(
+                status_code=400,
+                detail="পাসওয়ার্ড-সুরক্ষিত PDF পড়া যায়নি; আনলক করা PDF আপলোড করুন।",
+            )
+        page_count = len(reader.pages)
+        if not page_count:
+            raise HTTPException(status_code=400, detail="PDF-এ কোনো পৃষ্ঠা নেই।")
+        if page_count > MAX_SOURCE_PAGES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"একটি PDF-এ সর্বোচ্চ {MAX_SOURCE_PAGES}টি পৃষ্ঠা গ্রহণ করা যায়।",
+            )
+
+        page_texts: list[tuple[int, str]] = []
+        total_characters = 0
+        for page_number, page in enumerate(reader.pages, start=1):
+            page_text = (page.extract_text() or "").strip()
+            total_characters += len(page_text)
+            if total_characters > MAX_EXTRACTED_TEXT_CHARS:
+                raise HTTPException(
+                    status_code=413,
+                    detail="PDF থেকে নির্যাস করা লেখা ২৫০,০০০ অক্ষরের বেশি।",
+                )
+            if page_text:
+                page_texts.append((page_number, page_text))
+    except HTTPException:
+        raise
+    except (PdfReadError, OSError, ValueError, KeyError, TypeError) as exc:
+        logger.warning("PDF extraction failed for %s: %s", filename, exc)
+        raise HTTPException(
+            status_code=400,
+            detail="PDF পড়া যায়নি। ফাইলটি বৈধ ও খোলার উপযোগী কি না যাচাই করুন।",
+        ) from exc
+
+    if not page_texts:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "PDF-এ নির্বাচনযোগ্য পাঠ্য পাওয়া যায়নি। স্ক্যান করা ছবির PDF হলে "
+                "OCR করে পাঠ্য-সহ PDF আপলোড করুন।"
+            ),
+        )
+
+    chunks = _chunk_pdf_pages(page_texts)
+    extracted_text = "\n".join(
+        f"পৃষ্ঠা নং {page_number}\n{text}" for page_number, text in page_texts
+    )
+    try:
+        decision = validate_pdf_domain(
+            extracted_text, chunks, get_vector_collection()
+        )
+    except Exception as exc:
+        logger.exception("PDF domain validation failed")
+        raise HTTPException(
+            status_code=503,
+            detail="আইনি ডোমেইন যাচাই সেবা বর্তমানে পাওয়া যাচ্ছে না। পরে আবার চেষ্টা করুন।",
+        ) from exc
+
+    if not decision.allowed or decision.domain is None or decision.domain_bn is None:
+        log_audit_trail(
+            user_id,
+            f"PDF upload rejected: {filename}",
+            "কোনো উৎস সংরক্ষণ করা হয়নি",
+            "No Info (Out of Scope)",
+            OUT_OF_SCOPE_PDF_MESSAGE,
+        )
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "out_of_scope",
+                "message": OUT_OF_SCOPE_PDF_MESSAGE,
+            },
+        )
+
+    source = save_uploaded_source(
+        user_id,
+        filename,
+        decision.domain,
+        decision.domain_bn,
+        page_count,
+        extracted_text,
+        chunks,
+    )
+    return {
+        "status": "success",
+        "message": "PDF যাচাই করে আপনার ব্যক্তিগত উৎস নথিতে সংরক্ষণ করা হয়েছে।",
+        "source": _source_metadata(source),
+    }
+
+
+@app.get("/api/sources")
+def api_get_sources(
+    user_id: Annotated[int, Query(ge=1)],
+) -> list[dict[str, object]]:
+    _require_user(user_id)
+    return get_user_sources(user_id)
+
+
+@app.delete("/api/sources/{source_id}")
+def api_delete_source(
+    source_id: int,
+    user_id: Annotated[int, Query(ge=1)],
+) -> dict[str, str]:
+    _require_user(user_id)
+    if not delete_uploaded_source(source_id, user_id):
+        raise HTTPException(status_code=404, detail="উৎস নথিটি পাওয়া যায়নি।")
+    return {"status": "success", "message": "উৎস PDF মুছে ফেলা হয়েছে।"}
+
+
+@app.post("/api/analyze-case")
+def api_analyze_case(request: CaseAnalysisRequest) -> dict[str, object]:
+    _require_user(request.user_id)
+    domain = request.domain
+    source_summary: list[dict[str, Any]] = []
+    source_context = ""
+    source: dict[str, Any] | None = None
+
+    if request.source_id is not None:
+        source = get_source_by_id(request.source_id, request.user_id)
+        if source is None:
+            raise HTTPException(status_code=404, detail="উৎস নথিটি পাওয়া যায়নি।")
+        source_domain = str(source["detected_domain"])
+        if domain != "all" and domain != source_domain:
+            return _out_of_scope(
+                SearchRequest(
+                    query=request.query,
+                    domain=request.domain,
+                    top_k=request.top_k,
+                    user_id=request.user_id,
+                ),
+                request.query,
+            )
+        domain = source_domain
+        source_check = inspect_domain_text(
+            str(source["extracted_text"]),
+            preferred_domain=source_domain,
+        )
+        if not source_check.allowed:
+            return _out_of_scope(
+                SearchRequest(
+                    query=request.query,
+                    domain=domain,
+                    top_k=request.top_k,
+                    user_id=request.user_id,
+                ),
+                request.query,
+            )
+        chunks = json.loads(str(source["chunks_json"]))
+        source_summary = summarize_source(chunks, request.query)
+        source_context = "\n".join(
+            f"{item['citation']}: {item['excerpt']}" for item in source_summary
+        )
+
+    search_request = SearchRequest(
+        query=request.query,
+        domain=domain,
+        top_k=request.top_k,
+        user_id=request.user_id,
+    )
+    result = _run_search(
+        search_request,
+        context_text=source_context,
+        log_success=False,
+        conversational_intents=False,
+    )
+    if result.get("status") != "success":
+        return result
+    analysis = build_case_action_plan(
+        request.query,
+        result.get("results") or [],
+        source_summary=source_summary,
+    )
+    result.update(analysis)
+    if request.source_id is not None and source is not None:
+        result["source"] = _source_metadata(source)
+    _audit_case_analysis(request.user_id, request.query, analysis)
+    return result
 
 
 @app.post("/api/generate-draft")

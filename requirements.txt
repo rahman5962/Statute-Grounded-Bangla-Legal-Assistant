@@ -7,3 +7,5 @@ requests>=2.31.0
 
 fastapi
 uvicorn
+pypdf>=5.0.0
+python-multipart>=0.0.9
