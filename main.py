@@ -46,6 +46,52 @@ DOMAIN_MAX_SECTIONS: dict[str, tuple[int, str]] = {
     "all": (353, "সংশ্লিষ্ট আইনসমূহ"),
 }
 BENGALI_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789")
+MAX_COSINE_DISTANCE = 0.52
+OUT_OF_SCOPE_MESSAGE = (
+    "দুঃখিত, আমাদের সংকলিত ৫০৮টি আইনি ধারার (বাংলাদেশ শ্রম আইন ২০০৬, "
+    "ভোক্তা অধিকার সংরক্ষণ আইন ২০০৯ এবং সাইবার সুরক্ষা আইন ২০২৬) মধ্যে "
+    "আপনার প্রশ্নের বিষয়ে কোনো তথ্য নেই। অনুগ্রহ করে এই তিনটি আইনের "
+    "আওতাভুক্ত কোনো প্রশ্ন করুন অথবা নিচের সাধারণ প্রশ্নগুলো (FAQ) থেকে নির্বাচন করুন।"
+)
+CHAT_REPLY = (
+    "হ্যালো! আমি আইনসাথী, বাংলাদেশের নির্বাচিত আইনি তথ্য খুঁজে পেতে আপনার "
+    "সহায়ক। আমি বাংলাদেশ শ্রম আইন ২০০৬, ভোক্তা অধিকার সংরক্ষণ আইন ২০০৯ "
+    "এবং সাইবার সুরক্ষা আইন ২০২৬-এর সংকলিত ধারার ভিত্তিতে উত্তর দিই। "
+    "আপনি স্বাভাবিক বাংলায় লিখে বা bn-BD ভয়েস ইনপুটে প্রশ্ন করতে পারেন।"
+)
+DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
+    "labour_law": (
+        "শ্রম", "শ্রমিক", "কর্মচার", "চাকরি", "চাকুরী", "নিয়োগ", "নিয়োগ",
+        "মজুরি", "বেতন", "ওভারটাইম", "অতিরিক্ত কাজ", "মাতৃত্ব", "প্রসূতি",
+        "ছুটি", "কারখানা", "কর্মঘণ্টা", "কর্মঘন্টা", "labour", "labor",
+        "worker", "employee", "employment", "overtime", "maternity leave",
+        "wage", "salary",
+    ),
+    "consumer_rights": (
+        "ভোক্তা", "পণ্য", "দ্রব্য", "মেয়াদোত্তীর্ণ", "মেয়াদোত্তীর্ণ", "ভেজাল",
+        "নকল", "ক্রেতা", "বিক্রেতা", "বিক্রি", "বিক্রয়", "বিক্রয়", "মূল্য",
+        "দাম", "ভোক্তা অধিকার", "consumer", "product", "expired", "counterfeit",
+        "adulterated", "seller", "buyer", "price",
+    ),
+    "cyber_law": (
+        "সাইবার", "অনলাইন", "ইন্টারনেট", "হ্যাক", "বুলিং", "সামাজিক মাধ্যম",
+        "তথ্যপ্রযুক্তি", "তথ্য-উপাত্ত", "তথ্য উপাত্ত", "ডিজিটাল", "কম্পিউটার",
+        "সাইবার অপরাধ", "cyber", "online", "internet", "hack", "bullying",
+        "social media", "phishing", "computer", "data breach",
+    ),
+}
+CHAT_INTENTS = (
+    "হ্যালো", "হাই", "সালাম", "আসসালামু আলাইকুম",
+    "তুমি কে", "আপনি কে", "কিভাবে সাহায্য করতে পারো", "কীভাবে সাহায্য করতে পারো",
+    "কিভাবে সাহায্য করবেন", "কীভাবে সাহায্য করবেন", "hello", "hi", "hey",
+    "who are you", "what can you do", "how can you help", "help", "assalamu alaikum",
+    "salam", "tumi ke", "apni ke", "kivabe help", "kibhabe help",
+)
+SEARCH_STOPWORDS = {
+    "আমি", "আমার", "আপনি", "কি", "কী", "কেন", "কিভাবে", "কীভাবে", "কত",
+    "হবে", "হয়", "হয়", "করলে", "করিবার", "করে", "করতে", "কোন", "কোনো",
+    "জন্য", "সম্পর্কে", "নিয়ম", "নিয়ম", "আইন", "ধারা",
+}
 
 _vector_collection = None
 _vector_collection_lock = threading.Lock()
@@ -221,7 +267,61 @@ def _confidence(distance: object) -> float:
         value = float(distance)
     except (TypeError, ValueError):
         return 0.0
-    return round(max(0.0, min(1.0, 1.0 - value / 2.0)) * 100, 1)
+    return round(max(0.0, min(100.0, (1.0 - value) * 100)), 1)
+
+
+def _is_chat_intent(query: str) -> bool:
+    normalized = re.sub(r"[^\w]+", " ", query.casefold()).strip()
+    padded_query = f" {normalized} "
+    return any(
+        f" {re.sub(r'[^\w]+', ' ', intent.casefold()).strip()} " in padded_query
+        for intent in CHAT_INTENTS
+    )
+
+
+def _query_domains(query: str) -> set[str]:
+    normalized = query.casefold()
+    return {
+        domain
+        for domain, terms in DOMAIN_TERMS.items()
+        if any(term in normalized for term in terms)
+    }
+
+
+def _search_terms(text: str) -> set[str]:
+    normalized = text.casefold().replace("মেয়াদোত্তীর্ণ", "মেয়াদ উত্তীর্ণ")
+    normalized = normalized.replace("মেয়াদোত্তীর্ণ", "মেয়াদ উত্তীর্ণ")
+    terms: set[str] = set()
+    for token in re.findall(r"[\u0980-\u09FF]+|[a-z0-9]+", normalized):
+        if token in SEARCH_STOPWORDS:
+            continue
+        if token.startswith("পণ্য"):
+            token = "পণ্য"
+        elif token.startswith("বিক্র"):
+            token = "বিক্রয়"
+        elif token.startswith(("দণ্ড", "দন্ড", "শাস্তি")):
+            token = "দণ্ড"
+        terms.add(token)
+    return terms
+
+
+def _title_relevance(query: str, section_title: object) -> int:
+    return len(_search_terms(query) & _search_terms(str(section_title or "")))
+
+
+def _out_of_scope(request: SearchRequest, query: str) -> dict[str, object]:
+    log_audit_trail(
+        request.user_id,
+        query,
+        "কোনো প্রাসঙ্গিক ধারা পাওয়া যায়নি",
+        "No Info (Out of Scope)",
+        OUT_OF_SCOPE_MESSAGE,
+    )
+    return {
+        "status": "out_of_scope",
+        "message": OUT_OF_SCOPE_MESSAGE,
+        "results": [],
+    }
 
 
 def _section_out_of_range(query: str, domain: str) -> tuple[str, int, str] | None:
@@ -231,7 +331,7 @@ def _section_out_of_range(query: str, domain: str) -> tuple[str, int, str] | Non
     raw_number = match.group(1)
     section_number = int(raw_number.translate(BENGALI_DIGITS))
     maximum, domain_name = DOMAIN_MAX_SECTIONS[domain]
-    if section_number > maximum:
+    if section_number < 1 or section_number > maximum:
         return raw_number, maximum, domain_name
     return None
 
@@ -243,36 +343,39 @@ def _run_search(request: SearchRequest) -> dict[str, object]:
     if request.user_id is not None:
         _require_user(request.user_id)
 
+    if _is_chat_intent(query):
+        return {"status": "chat", "message": CHAT_REPLY, "results": []}
+
     rejected = _section_out_of_range(query, request.domain)
     if rejected is not None:
-        raw_number, maximum, domain_name = rejected
-        if request.user_id is not None:
-            log_audit_trail(
-                request.user_id,
-                query,
-                f"ধারা {raw_number} [Out of Range: >{maximum}]",
-                "Rejected",
-            )
-        return {
-            "status": "rejected",
-            "message": (
-                f"আইনি সতর্কতা: {domain_name}-এ ধারা {raw_number} নেই। "
-                f"এই আইনে সর্বোচ্চ ধারা {maximum}; তাই কোনো অনুমানভিত্তিক "
-                "তথ্য দেওয়া হচ্ছে না।"
-            ),
-            "results": [],
-        }
+        return _out_of_scope(request, query)
+
+    query_domains = _query_domains(query)
+    has_section_reference = re.search(r"ধারা\s*[০-৯0-9]+", query) is not None
+    if request.domain == "all":
+        if not query_domains and not has_section_reference:
+            return _out_of_scope(request, query)
+        search_domains = query_domains or set(DOMAIN_TERMS)
+    else:
+        if query_domains and request.domain not in query_domains:
+            return _out_of_scope(request, query)
+        if not query_domains and not has_section_reference:
+            return _out_of_scope(request, query)
+        search_domains = {request.domain}
 
     query_kwargs: dict[str, object] = {
         "query_texts": [query],
-        "n_results": request.top_k,
         "include": ["documents", "metadatas", "distances"],
     }
-    if request.domain != "all":
-        query_kwargs["where"] = {"domain": request.domain}
+    if len(search_domains) == 1:
+        query_kwargs["where"] = {"domain": next(iter(search_domains))}
+    elif search_domains:
+        query_kwargs["where"] = {"domain": {"$in": sorted(search_domains)}}
 
     try:
-        raw_results = get_vector_collection().query(**query_kwargs)
+        collection = get_vector_collection()
+        query_kwargs["n_results"] = collection.count()
+        raw_results = collection.query(**query_kwargs)
     except Exception as exc:
         logger.exception("Vector search failed")
         raise HTTPException(
@@ -287,34 +390,56 @@ def _run_search(request: SearchRequest) -> dict[str, object]:
     metadatas = metadatas_by_query[0] if metadatas_by_query else []
     distances = distances_by_query[0] if distances_by_query else []
     if not documents:
-        return {
-            "status": "empty",
-            "message": "আপনার প্রশ্নের সাথে মেলে এমন কোনো ধারা পাওয়া যায়নি।",
-            "results": [],
-        }
+        return _out_of_scope(request, query)
 
-    results: list[dict[str, object]] = []
+    ranked_results: list[tuple[int, float, dict[str, object]]] = []
     for index, document in enumerate(documents):
         metadata = metadatas[index] if index < len(metadatas) else {}
         distance = distances[index] if index < len(distances) else 2.0
         metadata = metadata or {}
+        domain = str(metadata.get("domain") or "")
+        section_number = str(metadata.get("section_number") or "")
+        section_match = re.match(r"[০-৯0-9]+", section_number)
+        if section_match is None:
+            continue
+        numeric_section = int(section_match.group().translate(BENGALI_DIGITS))
+        maximum = DOMAIN_MAX_SECTIONS.get(domain, (0, ""))[0]
+        if (
+            float(distance) > MAX_COSINE_DISTANCE
+            or domain not in DOMAIN_TERMS
+            or domain not in search_domains
+            or numeric_section < 1
+            or numeric_section > maximum
+            or not document
+        ):
+            continue
         status = _normalized_legal_status(metadata.get("legal_status"))
-        results.append(
-            {
-                "domain": metadata.get("domain", request.domain),
-                "domain_bn": metadata.get("domain_bn", ""),
-                "act_name": metadata.get("act_name", ""),
-                "chapter": metadata.get("chapter", ""),
-                "section_number": metadata.get("section_number", ""),
-                "section_title": metadata.get("section_title", ""),
-                "legal_status": status,
-                "source_legal_status": metadata.get("legal_status", ""),
-                "amendment_provenance": metadata.get("amendment_provenance", ""),
-                "content": document,
-                "confidence": _confidence(distance),
-            }
+        result = {
+            "domain": domain,
+            "domain_bn": metadata.get("domain_bn", ""),
+            "act_name": metadata.get("act_name", ""),
+            "chapter": metadata.get("chapter", ""),
+            "section_number": section_number,
+            "section_title": metadata.get("section_title", ""),
+            "legal_status": status,
+            "source_legal_status": metadata.get("legal_status", ""),
+            "amendment_provenance": metadata.get("amendment_provenance", ""),
+            "content": document,
+            "confidence": _confidence(distance),
+        }
+        ranked_results.append(
+            (
+                _title_relevance(query, metadata.get("section_title")),
+                float(distance),
+                result,
+            )
         )
 
+    if not ranked_results:
+        return _out_of_scope(request, query)
+
+    ranked_results.sort(key=lambda candidate: (-candidate[0], candidate[1]))
+    results = [candidate[2] for candidate in ranked_results[: request.top_k]]
     confidence = float(results[0]["confidence"])
     if request.user_id is not None:
         top = results[0]
