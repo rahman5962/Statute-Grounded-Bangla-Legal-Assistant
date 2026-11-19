@@ -4,8 +4,10 @@ Statute-Grounded Bangla Legal Assistant (FR-01, FR-04).
 Module: SQLite Relational Database Engine
 """
 
-from pathlib import Path
+import json
 import sqlite3
+from pathlib import Path
+from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "data" / "legal_assistant.db"
@@ -81,6 +83,27 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (log_id) REFERENCES query_logs (id)
         )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS uploaded_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            detected_domain TEXT NOT NULL CHECK (
+                detected_domain IN ('labour_law', 'consumer_rights', 'cyber_law')
+            ),
+            detected_domain_bn TEXT NOT NULL,
+            page_count INTEGER NOT NULL CHECK (page_count > 0),
+            extracted_text TEXT NOT NULL,
+            chunks_json TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_uploaded_sources_user_created
+        ON uploaded_sources (user_id, created_at DESC, id DESC)
     """)
 
     conn.commit()
@@ -196,6 +219,100 @@ def delete_bookmark(bookmark_id, user_id):
             (bookmark_id, user_id),
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def save_uploaded_source(
+    user_id: int,
+    filename: str,
+    detected_domain: str,
+    detected_domain_bn: str,
+    page_count: int,
+    extracted_text: str,
+    chunks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Persist extracted PDF text and page-aware chunks for one user."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO uploaded_sources (
+                user_id, filename, detected_domain, detected_domain_bn,
+                page_count, extracted_text, chunks_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                filename,
+                detected_domain,
+                detected_domain_bn,
+                page_count,
+                extracted_text,
+                json.dumps(chunks, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        source_id = cursor.lastrowid
+    finally:
+        conn.close()
+    if source_id is None:
+        raise RuntimeError("Uploaded source ID was not generated.")
+    source = get_source_by_id(source_id, user_id)
+    if source is None:
+        raise RuntimeError("Uploaded source was not persisted.")
+    return source
+
+
+def get_user_sources(user_id: int) -> list[dict[str, Any]]:
+    """Return source metadata belonging only to the requested user."""
+    conn = get_db_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, user_id, filename, detected_domain, detected_domain_bn,
+                   page_count, created_at
+            FROM uploaded_sources
+            WHERE user_id = ?
+            ORDER BY created_at DESC, id DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def get_source_by_id(source_id: int, user_id: int) -> dict[str, Any] | None:
+    """Fetch a source only when both its id and owner match."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT id, user_id, filename, detected_domain, detected_domain_bn,
+                   page_count, extracted_text, chunks_json, created_at
+            FROM uploaded_sources
+            WHERE id = ? AND user_id = ?
+            """,
+            (source_id, user_id),
+        ).fetchone()
+        return dict(row) if row is not None else None
+    finally:
+        conn.close()
+
+
+def delete_uploaded_source(source_id: int, user_id: int) -> bool:
+    """Delete a source only when it belongs to the requesting user."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM uploaded_sources WHERE id = ? AND user_id = ?",
+            (source_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
     finally:
         conn.close()
 
