@@ -37,6 +37,54 @@ def test_overtime_search_excludes_accident_and_audit_sections() -> None:
     assert [item["section_number"] for item in selected] == ["১০৮"]
 
 
+def test_wage_withholding_selects_wage_claim_not_injury_compensation() -> None:
+    results = [
+        statute("১৫৫", "ক্ষতিপূরণ বন্টন", "মৃত শ্রমিকের জখমজনিত ক্ষতিপূরণ"),
+        statute(
+            "১৩২",
+            "মজুরী হইতে কর্তন বা মজুরী বিলম্বে পরিশোধের কারণে উত্থিত দাবী",
+            "অনাদায়ী বা বিলম্বিত মজুরি আদায়ের জন্য শ্রম আদালতে দরখাস্ত",
+        ),
+        statute("১৪৭", "শ্রম আদালতে দরখাস্ত", "দুর্ঘটনাজনিত ক্ষতিপূরণের দরখাস্ত"),
+        statute("২১৩", "শ্রম আদালতে দরখাস্ত", "শ্রমিক সংগঠন সংক্রান্ত দরখাস্ত"),
+    ]
+
+    selected = main._select_relevant_statutes(
+        "শ্রমিকের বেতন আটকে রাখলে কীভাবে আইনি প্রতিকার পাওয়া যাবে?",
+        results,
+    )
+
+    assert [item["section_number"] for item in selected] == ["১৩২"]
+
+
+def test_consumer_remedy_query_adds_only_its_related_procedure_section() -> None:
+    results = [
+        {
+            **statute(
+                "৫১",
+                "মেয়াদ উত্তীর্ণ কোন পণ্য বা ঔষধ বিক্রয় করিবার দণ্ড",
+                "মেয়াদোত্তীর্ণ পণ্য বিক্রয়",
+            ),
+            "domain": "consumer_rights",
+        },
+        {
+            **statute("৬৬", "দেওয়ানী প্রতিকার", "দেওয়ানী প্রতিকারের বিধান"),
+            "domain": "consumer_rights",
+        },
+        {
+            **statute("৪০", "অধিক মূল্যে বিক্রয় করিবার দণ্ড", "পণ্যের মূল্য"),
+            "domain": "consumer_rights",
+        },
+    ]
+
+    selected = main._select_relevant_statutes(
+        "মেয়াদোত্তীর্ণ পণ্য বিক্রি করলে কী প্রতিকার পাওয়া যায়?",
+        results,
+    )
+
+    assert [item["section_number"] for item in selected] == ["৫১", "৬৬"]
+
+
 def test_cyber_query_selects_fraud_and_hacking_not_blackmail() -> None:
     results = [
         {
@@ -168,6 +216,32 @@ def test_case_plan_does_not_infer_forum_deadline_or_irrelevant_documents() -> No
     assert not analysis["step_by_step_plan"][2]["statute_ref"]
     assert not analysis["step_by_step_plan"][3]["statute_ref"]
     assert "নিশ্চিত" in analysis["step_by_step_plan"][3]["description"]
+
+
+def test_wage_claim_plan_identifies_labour_law_subject_and_statutory_process() -> None:
+    analysis = build_case_action_plan(
+        "শ্রমিকের বেতন আটকে রাখলে কীভাবে আইনি প্রতিকার পাওয়া যাবে?",
+        [
+            {
+                **statute(
+                    "১৩২",
+                    "মজুরী হইতে কর্তন বা মজুরী বিলম্বে পরিশোধের কারণে উত্থিত দাবী",
+                    "মজুরি না দেওয়া বা বিলম্বের জন্য শ্রম আদালতে দরখাস্ত করা যায়। "
+                    "দরখাস্ত বারো মাসের মধ্যে করতে হয়; যথেষ্ট কারণ থাকলে পরে গ্রহণ হতে পারে। "
+                    "আদালত শুনানি শেষে পাওনা দিতে এবং কিছু ক্ষেত্রে ২৫ শতাংশ ক্ষতিপূরণ দিতে পারে।",
+                ),
+                "domain": "labour_law",
+                "domain_bn": "বাংলাদেশ শ্রম আইন",
+                "act_name": "বাংলাদেশ শ্রম আইন, ২০০৬",
+            }
+        ],
+    )
+
+    assert "বকেয়া/বিলম্বিত মজুরি" in analysis["legal_search_subject_bn"]
+    assert "নিশ্চিত করা হয়নি" in analysis["case_type_bn"]
+    assert "শ্রম আদালত" in analysis["step_by_step_plan"][1]["description"]
+    assert "১২ মাস" in analysis["step_by_step_plan"][2]["description"]
+    assert "২৫%" in analysis["step_by_step_plan"][3]["description"]
 
 
 def test_pdf_summary_omits_pages_without_query_evidence() -> None:

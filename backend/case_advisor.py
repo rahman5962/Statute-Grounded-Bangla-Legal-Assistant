@@ -12,8 +12,28 @@ PROCEDURE_TITLE_MARKERS = (
     "অভিযোগ দায়ের",
     "অভিযোগ দায়ের",
     "শ্রম আদালতে দরখাস্ত",
+    "মজুরী বিলম্বে পরিশোধের কারণে উত্থিত দাবী",
     "দেওয়ানী প্রতিকার",
     "দেওয়ানী প্রতিকার",
+)
+UNPAID_WAGE_QUERY_MARKERS = (
+    "বকেয়া মজুরি",
+    "বকেয়া মজুরী",
+    "বকেয়া বেতন",
+    "মজুরি আটকে",
+    "মজুরী আটকে",
+    "বেতন আটকে",
+    "মজুরি দেয়নি",
+    "মজুরী দেয়নি",
+    "বেতন দেয়নি",
+    "বেতন পরিশোধ হয়নি",
+    "মজুরি পরিশোধ হয়নি",
+    "মজুরী পরিশোধ হয়নি",
+    "unpaid wage",
+    "unpaid wages",
+    "unpaid salary",
+    "salary withheld",
+    "wages withheld",
 )
 TERMINATION_MARKERS = ("চাকরিচ্যুত", "বরখাস্ত", "termination", "dismissal")
 FINANCIAL_LOSS_MARKERS = (
@@ -41,6 +61,23 @@ def _has_marker(text: str, marker: str) -> bool:
 
 def _citation_ref(statute: dict[str, Any]) -> str:
     return f"ধারা {statute.get('section_number', '—')}"
+
+
+def _is_unpaid_wage_claim(
+    query: str, domain: str, statutes: list[dict[str, Any]]
+) -> bool:
+    if domain != "labour_law" or not any(
+        _has_marker(query, marker) for marker in UNPAID_WAGE_QUERY_MARKERS
+    ):
+        return False
+    return any(
+        str(statute.get("section_number") or "") in {"১৩২", "132"}
+        and _has_marker(
+            str(statute.get("section_title") or ""),
+            "মজুরী বিলম্বে পরিশোধের কারণে উত্থিত দাবী",
+        )
+        for statute in statutes
+    )
 
 
 def summarize_source(
@@ -157,6 +194,17 @@ def build_case_action_plan(
     domain_bn = str(statutes[0].get("domain_bn") or "")
     act_name = str(statutes[0].get("act_name") or domain_bn)
     case_type = "এই অনুসন্ধান থেকে মামলার ধরন নিশ্চিত করা হয়নি"
+    wage_claim = _is_unpaid_wage_claim(query, domain, statutes)
+    if wage_claim:
+        legal_search_subject = "বকেয়া/বিলম্বিত মজুরি আদায়ের দাবি (ধারা ১৩২)"
+    else:
+        primary_statute = statutes[0]
+        primary_title = str(primary_statute.get("section_title") or "").strip()
+        legal_search_subject = (
+            f"{_citation_ref(primary_statute)}: {primary_title}"
+            if primary_title
+            else "প্রাসঙ্গিক আইনভিত্তিক বিষয় আরও যাচাই প্রয়োজন"
+        )
     procedure_sections = [
         statute
         for statute in statutes
@@ -190,18 +238,50 @@ def build_case_action_plan(
         + "। ঘটনার সঙ্গে কোন শর্তটি মেলে তা মূল ধারার পূর্ণ পাঠ যাচাই করে নিশ্চিত করুন; "
         "শুধু শিরোনাম দেখে অভিযোগ গ্রহণ বা ফল নিশ্চিত ধরে নেবেন না।"
         if procedure_sections
-        else "নির্বাচিত ধারাগুলো থেকে অভিযোগ বা নোটিশের সুনির্দিষ্ট পদ্ধতি নিশ্চিত করা যায়নি। "
+        else "নির্বাচিত ধারাগুলো থেকে অভিযোগ বা আবেদনের সুনির্দিষ্ট পদ্ধতি নিশ্চিত করা যায়নি। "
         "কোনো নির্দিষ্ট কর্তৃপক্ষ বা প্রক্রিয়া অনুমান না করে মূল আইন/আইনজীবীর সঙ্গে যাচাই করুন।"
     )
+    step_two_title = "অভিযোগ বা প্রক্রিয়াগত পদক্ষেপ যাচাই"
     step_three = (
         "এই অনুসন্ধানের নির্বাচিত ধারাগুলো থেকে আপনার ঘটনার জন্য নির্দিষ্ট কর্তৃপক্ষ, "
         "আদালত বা ট্রাইব্যুনাল নিশ্চিত করা হয়নি। পদক্ষেপের আগে মূল আইন ও সংশ্লিষ্ট "
         "কর্তৃপক্ষ/আইনজীবীর কাছে যাচাই করুন।"
     )
+    step_three_title = "উপযুক্ত কর্তৃপক্ষ ও বিচারিক প্রক্রিয়া যাচাই"
     step_four = (
         "নির্বাচিত ধারাগুলো থেকে নির্দিষ্ট তামাদি, আপিল বা অন্য কোনো সময়সীমা নিশ্চিত "
         "করা হয়নি। সময়সীমা অনুমান না করে মূল আইন বা আইনজীবীর কাছে দ্রুত যাচাই করুন।"
     )
+    step_four_title = "সময়সীমা, প্রতিকার ও আপিল যাচাই"
+    step_two_refs = procedure_refs
+    step_three_refs: list[str] = []
+    step_four_refs: list[str] = []
+    if wage_claim:
+        wage_refs = [_citation_ref(statute) for statute in procedure_sections]
+        step_two_title = "বকেয়া বা বিলম্বিত মজুরির দাবি"
+        step_two = (
+            "ধারা ১৩২(১) অনুযায়ী, মজুরি কর্তন, অনাদায়ী থাকা বা বিলম্বে পরিশোধের ক্ষেত্রে "
+            "শ্রমিক বা আইনসঙ্গত প্রতিনিধি পাওনা আদায়ের জন্য শ্রম আদালতে দরখাস্ত করতে পারেন। "
+            "মজুরি পাওনা কি না এবং পরিশোধের জন্য দায়ী ব্যক্তি কে—নিয়োগ ও বেতন-সংক্রান্ত "
+            "নথি দিয়ে যাচাই করুন।"
+        )
+        step_three_title = "শ্রম আদালতের এখতিয়ার ও আবেদনের সময়"
+        step_three = (
+            "ধারা ১৩২(২) অনুযায়ী, দরখাস্তটি কাজের স্থান বা মজুরি পরিশোধের স্থানের "
+            "এখতিয়ারাধীন শ্রম আদালতে করতে হয়। মজুরি কর্তনের তারিখ বা মজুরি প্রদেয় "
+            "হওয়ার তারিখ থেকে ১২ মাসের মধ্যে আবেদন করতে হয়; যথেষ্ট কারণ থাকলে আদালত "
+            "বিলম্বিত আবেদনও গ্রহণ করতে পারে।"
+        )
+        step_four_title = "সম্ভাব্য আদেশ ও ক্ষতিপূরণের শর্ত"
+        step_four = (
+            "ধারা ১৩২(৩), (৫) ও (৬) অনুযায়ী শুনানি ও প্রমাণের পর শ্রম আদালত বকেয়া "
+            "মজুরি দিতে নির্দেশ দিতে পারে এবং আইনের শর্তে সর্বোচ্চ ২৫% ক্ষতিপূরণও "
+            "নির্দেশ করতে পারে। এই ক্ষতিপূরণ স্বয়ংক্রিয় নয়; প্রকৃত ভুল/বিরোধ, জরুরি "
+            "বা বিশেষ পরিস্থিতি, অথবা শ্রমিকের মজুরি গ্রহণ/দাবি না করার মতো কারণ থাকলে "
+            "বিলম্বের ক্ষেত্রে তা নাও দেওয়া হতে পারে।"
+        )
+        step_three_refs = wage_refs
+        step_four_refs = wage_refs
 
     source_note = ""
     if source_summary:
@@ -222,25 +302,26 @@ def build_case_action_plan(
         },
         {
             "step_number": 2,
-            "title": "অভিযোগ / আইনি নোটিশ প্রস্তুত",
+            "title": step_two_title,
             "description": step_two,
-            "statute_ref": procedure_refs,
+            "statute_ref": step_two_refs,
         },
         {
             "step_number": 3,
-            "title": "উপযুক্ত কর্তৃপক্ষ ও বিচারিক প্রক্রিয়া যাচাই",
+            "title": step_three_title,
             "description": step_three,
-            "statute_ref": [],
+            "statute_ref": step_three_refs,
         },
         {
             "step_number": 4,
-            "title": "সময়সীমা, প্রতিকার ও আপিল যাচাই",
+            "title": step_four_title,
             "description": step_four,
-            "statute_ref": [],
+            "statute_ref": step_four_refs,
         },
     ]
     return {
         "case_type_bn": case_type,
+        "legal_search_subject_bn": legal_search_subject,
         "detected_domain_bn": domain_bn,
         "act_name": act_name,
         "source_summary": source_summary or [],
@@ -249,7 +330,8 @@ def build_case_action_plan(
         "required_documents": _required_documents(domain, query),
         "disclaimer": (
             "এই পরিকল্পনা একটি সহায়ক তালিকা, আইনি মতামত নয়। প্রদর্শিত ধারার বাইরে "
-            "কোনো কর্তৃপক্ষ, মামলার ধরন বা সময়সীমা অনুমান করা হয়নি। মূল আইন ও "
-            "ঘটনার তথ্য আইনজীবী/সংশ্লিষ্ট কর্তৃপক্ষের মাধ্যমে যাচাই করুন।"
+            "কোনো কর্তৃপক্ষ বা মামলার ধরন অনুমান করা হয়নি। আইনভিত্তিক অনুসন্ধানের "
+            "বিষয়টি প্রাথমিক শ্রেণিবিন্যাস; মূল আইন ও ঘটনার তথ্য আইনজীবী/সংশ্লিষ্ট "
+            "কর্তৃপক্ষের মাধ্যমে যাচাই করুন।"
         ),
     }

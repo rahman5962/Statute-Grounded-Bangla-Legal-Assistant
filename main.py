@@ -137,8 +137,30 @@ TOPIC_RELEVANCE_RULES = (
     ),
     (
         "unpaid_wages",
-        ("বকেয়া মজুরি", "বকেয়া বেতন", "মজুরি দেয়নি", "বেতন দেয়নি", "unpaid wage", "unpaid salary"),
-        ("বকেয়া মজুরি", "বকেয়া বেতন", "মজুরি", "বেতন", "unpaid wage", "unpaid salary"),
+        (
+            "বকেয়া মজুরি",
+            "বকেয়া মজুরী",
+            "বকেয়া বেতন",
+            "মজুরি দেয়নি",
+            "মজুরী দেয়নি",
+            "বেতন দেয়নি",
+            "বেতন আটকে",
+            "মজুরি আটকে",
+            "মজুরী আটকে",
+            "বেতন পরিশোধ হয়নি",
+            "মজুরি পরিশোধ হয়নি",
+            "মজুরী পরিশোধ হয়নি",
+            "unpaid wage",
+            "unpaid wages",
+            "unpaid salary",
+            "salary withheld",
+            "wages withheld",
+        ),
+        (
+            "মজুরী হইতে কর্তন বা মজুরী বিলম্বে পরিশোধ",
+            "মজুরি হইতে কর্তন বা মজুরি বিলম্বে পরিশোধ",
+            "unpaid wage",
+        ),
     ),
     (
         "termination",
@@ -162,19 +184,17 @@ TOPIC_RELEVANCE_RULES = (
     ),
     (
         "civil_remedy",
-        ("প্রতিকার", "ক্ষতিপূরণ", "দেওয়ানি", "দেওয়ানি", "civil remedy", "compensation"),
+        ("ক্ষতিপূরণ", "দেওয়ানি", "দেওয়ানি", "civil remedy", "compensation"),
         ("প্রতিকার", "ক্ষতিপূরণ", "দেওয়ানি", "দেওয়ানি", "civil remedy", "compensation"),
     ),
 )
-PROCEDURE_SECTION_MARKERS = (
-    "মামলা দায়ের",
-    "মামলা দায়ের",
-    "অভিযোগ দায়ের",
-    "অভিযোগ দায়ের",
-    "শ্রম আদালতে দরখাস্ত",
-    "দেওয়ানী প্রতিকার",
-    "দেওয়ানী প্রতিকার",
-)
+ACTION_PROCEDURE_SECTIONS = {
+    ("cyber_law", "40"): {"cyber_fraud", "cyber_hacking", "cyber_blackmail"},
+    (
+        "consumer_rights",
+        "66",
+    ): {"expired_product", "consumer_adulteration", "counterfeit_product", "overpricing"},
+}
 SECTION_SCOPE_REQUIREMENTS = {
     ("cyber_law", "17"): (
         "গুরুত্বপূর্ণ তথ্য পরিকাঠামো",
@@ -513,11 +533,20 @@ def _select_relevant_statutes(
                 if statute not in selected:
                     selected.append(statute)
         if _requests_action_plan(query):
+            matched_topic_names = {name for name, _ in matched_rules}
             for statute in statutes:
-                title = str(statute.get("section_title") or "").casefold()
+                section_match = re.match(
+                    r"[০-৯0-9]+", str(statute.get("section_number") or "")
+                )
+                if section_match is None:
+                    continue
+                section_number = section_match.group().translate(BENGALI_DIGITS)
+                required_topics = ACTION_PROCEDURE_SECTIONS.get(
+                    (str(statute.get("domain") or ""), section_number), set()
+                )
                 if (
-                    any(marker in title for marker in PROCEDURE_SECTION_MARKERS)
-                    and not any(marker in title for marker in ("মিথ্যা", "false"))
+                    matched_topic_names.intersection(required_topics)
+                    and _section_scope_matches(statute, query)
                     and statute not in selected
                 ):
                     selected.append(statute)

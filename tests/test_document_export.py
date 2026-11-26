@@ -16,6 +16,7 @@ from document_export import build_case_plan_docx
 def test_case_plan_docx_contains_grounded_steps_and_source_citations() -> None:
     analysis = {
         "act_name": "ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯",
+        "legal_search_subject_bn": "মেয়াদোত্তীর্ণ পণ্য বিক্রয় (ধারা ৫১)",
         "case_type_bn": "ফৌজদারি প্রতিকারযোগ্য মামলা",
         "source_summary": [
             {
@@ -48,6 +49,8 @@ def test_case_plan_docx_contains_grounded_steps_and_source_citations() -> None:
     text = "\n".join(paragraph.text for paragraph in document.paragraphs)
 
     assert "ধাপে ধাপে আইনি করণীয়" in text
+    assert "অনুসন্ধানে শনাক্ত আইন (প্রাথমিক): ভোক্তা-অধিকার সংরক্ষণ আইন, ২০০৯" in text
+    assert "আইনভিত্তিক অনুসন্ধানের বিষয় (প্রাথমিক): মেয়াদোত্তীর্ণ পণ্য বিক্রয় (ধারা ৫১)" in text
     assert "পৃষ্ঠা নং ২" in text
     assert "ধাপ 1: প্রমাণ সংরক্ষণ" in text
     assert "ধারা ৫১" in text

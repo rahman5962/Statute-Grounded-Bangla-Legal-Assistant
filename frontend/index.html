@@ -1246,8 +1246,13 @@
         titleBlock.append(
           makeText("p", "text-xs font-semibold uppercase tracking-[.15em] text-violet-200", "ধাপে ধাপে করণীয়"),
           makeText("h3", "mt-1 break-words text-lg font-semibold text-white", "আপনার আইনি করণীয় পরিকল্পনা"),
-          makeText("p", "mt-2 break-words text-sm leading-6 text-slate-300", `প্রযোজ্য আইন: ${result.act_name || result.detected_domain_bn || "সংকলিত আইন"}`)
+          makeText("p", "mt-2 break-words text-sm leading-6 text-slate-300", `অনুসন্ধানে শনাক্ত আইন (প্রাথমিক): ${result.act_name || result.detected_domain_bn || "সংকলিত আইন"}`)
         );
+        if (result.legal_search_subject_bn) {
+          titleBlock.append(
+            makeText("p", "mt-1 break-words text-sm leading-6 text-slate-300", `আইনভিত্তিক অনুসন্ধানের বিষয় (প্রাথমিক): ${result.legal_search_subject_bn}`)
+          );
+        }
         const caseBadge = makeText("span", "max-w-full break-words whitespace-normal rounded-full border border-amber-300/20 bg-amber-300/[.07] px-3 py-1.5 text-xs font-semibold text-amber-100", result.case_type_bn || "প্রতিকার যাচাই");
         heading.append(titleBlock, caseBadge);
         roadmap.append(heading);
@@ -1595,7 +1600,7 @@
         printWindow.document.write(`<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>আইনসাথী — আইনি করণীয় পরিকল্পনা</title><style>
           @page{size:A4;margin:18mm}*{box-sizing:border-box}body{margin:0;color:#18212b;font-family:"Noto Sans Bengali","Nirmala UI",sans-serif;font-size:11pt;line-height:1.65}main{max-width:780px;margin:0 auto}header{border-bottom:2px solid #176a59;padding-bottom:14px;margin-bottom:20px}header p{margin:0;color:#176a59;font-size:10pt;font-weight:700;letter-spacing:.04em}h1{font-size:21pt;line-height:1.3;margin:8px 0}h2{font-size:13pt;margin:0 0 7px}h2 span{color:#176a59}h3{font-size:11pt;margin:0 0 5px}p{margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}.meta,.step,.excerpt,.citation{border:1px solid #d7e1df;border-radius:8px;padding:12px;margin:10px 0;break-inside:avoid}.meta{background:#f3f8f6}.step{border-left:3px solid #176a59}.refs,.muted{color:#51616d;font-size:9.5pt}.excerpt{background:#f7f5fb}.citation{background:#fafbfc}ul{padding-left:22px}li{margin:4px 0}.notice{border-top:1px solid #d7e1df;margin-top:22px;padding-top:12px;color:#51616d;font-size:9pt}@media print{main{max-width:none}}
           </style></head><body><main><header><p>আইনসাথী · সংকলিত আইনের ভিত্তিতে</p><h1>ধাপে ধাপে আইনি করণীয়</h1></header>
-          <section class="meta"><p><strong>আপনার প্রশ্ন:</strong> ${escapeHtml(query)}</p><p><strong>প্রযোজ্য আইন:</strong> ${escapeHtml(result.act_name || result.detected_domain_bn || "সংকলিত আইন")}</p><p><strong>মামলার ধরন:</strong> ${escapeHtml(result.case_type_bn || "প্রতিকার যাচাই")}</p></section>
+          <section class="meta"><p><strong>আপনার প্রশ্ন:</strong> ${escapeHtml(query)}</p><p><strong>অনুসন্ধানে শনাক্ত আইন (প্রাথমিক):</strong> ${escapeHtml(result.act_name || result.detected_domain_bn || "সংকলিত আইন")}</p>${result.legal_search_subject_bn ? `<p><strong>আইনভিত্তিক অনুসন্ধানের বিষয় (প্রাথমিক):</strong> ${escapeHtml(result.legal_search_subject_bn)}</p>` : ""}<p><strong>মামলার ধরন:</strong> ${escapeHtml(result.case_type_bn || "প্রতিকার যাচাই")}</p></section>
           ${sourceHtml ? `<h2>আপলোডকৃত PDF থেকে প্রাসঙ্গিক অংশ</h2>${sourceHtml}` : ""}
           <h2>করণীয় ধাপ</h2>${stepsHtml}
           ${documentsHtml ? `<h2>প্রয়োজনীয় কাগজপত্র</h2><ul>${documentsHtml}</ul>` : ""}

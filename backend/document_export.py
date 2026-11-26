@@ -79,8 +79,14 @@ def build_case_plan_docx(query: str, analysis: dict[str, Any]) -> bytes:
     _add_paragraph(document, f"প্রশ্ন: {query}")
     _add_paragraph(
         document,
-        f"প্রযোজ্য আইন: {_text(analysis.get('act_name')) or _text(analysis.get('detected_domain_bn')) or 'সংকলিত আইন'}",
+        f"অনুসন্ধানে শনাক্ত আইন (প্রাথমিক): {_text(analysis.get('act_name')) or _text(analysis.get('detected_domain_bn')) or 'সংকলিত আইন'}",
     )
+    legal_subject = _text(analysis.get("legal_search_subject_bn"))
+    if legal_subject:
+        _add_paragraph(
+            document,
+            f"আইনভিত্তিক অনুসন্ধানের বিষয় (প্রাথমিক): {legal_subject}",
+        )
     _add_paragraph(
         document,
         f"মামলার ধরন: {_text(analysis.get('case_type_bn')) or 'প্রতিকার যাচাই'}",
