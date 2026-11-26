@@ -125,6 +125,218 @@
         .chat-card { height: 66dvh; min-height: 420px; }
       }
       ::selection { background: rgba(85, 230, 189, .28); }
+      :root {
+        --chat-bg: #090b0f;
+        --chat-panel: #111318;
+        --chat-line: rgba(255,255,255,.09);
+        --chat-text: #eceef2;
+        --chat-muted: #9a9da6;
+      }
+      body { background: var(--chat-bg); }
+      .app-sidebar {
+        width: 272px !important;
+        background: #101115 !important;
+        border-color: var(--chat-line) !important;
+        padding: 1rem !important;
+        overflow-y: auto;
+        transition: transform .24s ease;
+      }
+      .app-sidebar nav { margin-top: 1rem !important; }
+      .history-item { min-width: 0; }
+      .history-item[aria-current="true"] { background: rgba(255,255,255,.09); color: #fff; }
+      .history-item .history-actions { opacity: 0; transition: opacity .16s ease; }
+      .history-item:hover .history-actions, .history-item:focus-within .history-actions { opacity: 1; }
+      #app-view.chat-mode { height: 100dvh; min-height: 0; overflow: hidden; }
+      .chat-mode > .app-sidebar { display: flex !important; }
+      .chat-mode > div { padding-left: 272px !important; }
+      .chat-mode > div > header { height: 58px; }
+      .chat-mode > div > header > nav { display: none; }
+      .chat-mode > div > main {
+        height: calc(100dvh - 58px);
+        max-width: none !important;
+        padding: 0 !important;
+        overflow: hidden;
+      }
+      .chat-mode main > .app-view:not(#view-search), .chat-mode main > footer,
+      .chat-mode main > #global-message, .chat-mode main > section:nth-of-type(2) { display: none; }
+      .chat-mode main > section:first-of-type { display: none; }
+      .chat-mode #view-search { height: 100%; margin: 0; }
+      .chat-mode #assistant-workspace { display: block; height: 100%; }
+      .chat-mode #workspace-side-panel { display: none; }
+      .chat-mode .chat-card {
+        position: relative;
+        height: 100%;
+        min-height: 0;
+        max-height: none;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
+      }
+      .chat-mode #chat-card > .mb-5:first-child { display: none; }
+      .chat-mode #chat-card > .mb-5:nth-child(2) {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 4;
+        margin: 0;
+        padding: .55rem 1rem;
+        border: 0;
+        background: linear-gradient(var(--chat-bg), rgba(9,11,15,.92));
+      }
+      .chat-mode #view-search > .mb-5:first-child { display: none; }
+      .chat-mode #chat-card > .mb-5:nth-child(2) label { color: #8d9099; }
+      .chat-mode #chat-messages {
+        width: min(100%, 850px);
+        margin: 0 auto;
+        padding: 3.8rem 1.5rem 13rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.6rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: #444 transparent;
+      }
+      .chat-mode #chat-messages > article { width: 100%; }
+      .chat-mode #chat-messages > article > div {
+        max-width: 78%;
+        border: 0;
+        border-radius: 1.2rem;
+        background: #202127;
+        padding: .8rem 1rem;
+      }
+      .chat-mode #chat-messages > article:has(.assistant-message) > div {
+        max-width: 100%;
+        border-radius: 0;
+        background: transparent;
+        padding: 0;
+      }
+      .chat-mode #search-form {
+        position: fixed;
+        z-index: 25;
+        left: 272px;
+        right: 0;
+        bottom: 0;
+        margin: 0;
+        padding: 1.5rem 1.25rem max(.7rem, env(safe-area-inset-bottom));
+        background: linear-gradient(to top, var(--chat-bg) 72%, rgba(9,11,15,.92) 90%, transparent);
+      }
+      .chat-mode #search-form > .composer-shell,
+      .chat-mode #search-form > #search-message,
+      .chat-mode #search-form > p {
+        width: min(100%, 800px);
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .chat-mode #search-form > .composer-shell {
+        position: relative;
+        align-items: flex-end;
+        gap: .55rem;
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 1.7rem;
+        background: #202127;
+        padding: .55rem .65rem;
+        box-shadow: 0 10px 40px rgba(0,0,0,.24);
+      }
+      .chat-mode #search-query {
+        flex: 1 1 0%;
+        min-height: 44px;
+        max-height: 180px;
+        height: 44px;
+        resize: none;
+        overflow-y: auto;
+        overflow-x: hidden;
+        line-height: 1.55;
+        padding: .65rem .3rem;
+        border: 0;
+        overflow-wrap: anywhere;
+      }
+      .chat-mode #source-plus,
+      .chat-mode #voice-button,
+      .chat-mode #search-submit {
+        width: 42px;
+        height: 42px;
+        flex: 0 0 42px;
+        border: 0;
+        border-radius: 50%;
+      }
+      .chat-mode #source-plus { background: transparent; font-size: 1.7rem; }
+      .chat-mode #voice-button { background: transparent; }
+      .chat-mode #search-submit { background: #f2f3f5; color: #111318; }
+      .chat-mode #search-submit[aria-label="উত্তর তৈরি থামান"] { background: #f87171; color: #fff; }
+      .chat-mode .composer-shell:focus-within { border-color: rgba(255,255,255,.28); box-shadow: 0 0 0 2px rgba(255,255,255,.05); }
+      .chat-mode #search-submit svg { display: block; }
+      .chat-mode #search-form > p { padding: .35rem 0 0; text-align: center; color: #777a83; }
+      .chat-mode #search-form > #search-message { margin-top: .5rem; }
+      .chat-mode #attachment-menu { bottom: 3.5rem; left: 0; width: 250px; border-radius: 1rem; background: #25262d; }
+      .chat-mode #attachment-menu:not(.hidden) { animation: menu-in .16s ease-out; }
+      @keyframes menu-in { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      .chat-mode .assistant-message { width: 100%; max-width: 100%; color: var(--chat-text); font-size: 1rem; line-height: 1.8; }
+      .chat-mode .assistant-message h3 { margin: 1.1rem 0 .45rem; font-size: 1.08rem; font-weight: 650; color: var(--chat-text); }
+      .chat-mode .assistant-message .answer-actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .8rem; }
+      .chat-mode .assistant-message .answer-actions button {
+        min-width: 36px; min-height: 36px; border: 1px solid transparent; border-radius: .65rem;
+        background: transparent; color: #92959e; padding: .35rem .55rem; font-size: .8rem;
+      }
+      .chat-mode .assistant-message .answer-actions button:hover,
+      .chat-mode .assistant-message .answer-actions button[aria-pressed="true"] { background: #202127; color: #f1f2f4; }
+      .chat-mode .assistant-message pre, .chat-mode .assistant-message .overflow-x-auto { max-width: 100%; overflow-x: auto; }
+      .empty-chat { width: min(100%, 720px); margin: auto; padding: 2rem 1.25rem; text-align: center; }
+      .empty-chat[hidden] { display: none; }
+      .empty-chat .prompt-card { text-align: left; }
+      #chat-messages.is-empty { justify-content: center; }
+      .voice-active { color: #f87171 !important; }
+      .mobile-sidebar-scrim { display: none; }
+      .mobile-sidebar-scrim.open { display: block; position: fixed; inset: 0; z-index: 29; background: rgba(0,0,0,.55); }
+      #theme-toggle[aria-pressed="true"] { color: #fbbf24; }
+      #app-view.light-mode { --chat-bg: #f7f7f8; --chat-panel: #fff; --chat-line: rgba(20,25,35,.12); --chat-text: #202127; --chat-muted: #656873; color: #202127; }
+      #app-view.light-mode > .app-sidebar { background: #efeff1 !important; }
+      #app-view.light-mode.chat-mode { background: #f7f7f8; }
+      #app-view.light-mode header { background-color: #f7f7f8; color: #202127; }
+      #app-view.light-mode .chat-mode > div > header { border-color: rgba(20,25,35,.12); }
+      #app-view.light-mode #chat-card > div:nth-child(2) { background: linear-gradient(#f7f7f8,rgba(247,247,248,.92)); }
+      #app-view.light-mode #chat-card > div:nth-child(2) button,
+      #app-view.light-mode #chat-card > div:nth-child(2) select { color: #333640; }
+      #app-view.light-mode #empty-chat h2, #app-view.light-mode #empty-chat span { color: #202127; }
+      #app-view.light-mode .prompt-card { color: #363943; border-color: rgba(20,25,35,.12); background: rgba(255,255,255,.55); }
+      #app-view.light-mode #search-query { color: #202127; }
+      #app-view.light-mode #search-form { background: linear-gradient(to top, #f7f7f8 72%, rgba(247,247,248,.92) 90%, transparent); }
+      #app-view.light-mode #search-form > .composer-shell { background: #fff; border-color: rgba(20,25,35,.18); }
+      #app-view.light-mode #chat-messages > article:not(:has(.assistant-message)) > div { background: #e9e9eb; color: #202127; }
+      #app-view.light-mode .assistant-message, #app-view.light-mode .assistant-message h3 { color: #202127; }
+      #app-view.light-mode .assistant-message .text-slate-100,
+      #app-view.light-mode .assistant-message .text-slate-200,
+      #app-view.light-mode .assistant-message .text-slate-300,
+      #app-view.light-mode .assistant-message .text-white { color: #27303a; }
+      #app-view.light-mode .assistant-message [class*="bg-slate-950"],
+      #app-view.light-mode .assistant-message [class*="bg-black/"] { background-color: #f0f1f3; }
+      #app-view.light-mode .assistant-message [class*="border-white/"] { border-color: rgba(20,25,35,.12); }
+      #app-view.light-mode #chat-messages > article:has(.assistant-message) { color: #202127; }
+      #app-view.light-mode #chat-messages > article:has(.assistant-message) .answer-actions button { color: #686b74; }
+      #app-view.light-mode .app-sidebar input { background: rgba(255,255,255,.65); color: #252831; }
+      #app-view.light-mode .app-sidebar .history-item[aria-current="true"] { background: rgba(20,25,35,.1); color: #202127; }
+      @media (max-width: 1023px) {
+        .app-sidebar { display: flex !important; transform: translateX(-105%); }
+        #app-view.sidebar-open .app-sidebar { transform: translateX(0); }
+        .chat-mode > div { padding-left: 0 !important; }
+        .chat-mode > div > header { padding-left: 3.25rem; }
+        .chat-mode #search-form { left: 0; }
+        .chat-mode #chat-messages { padding-left: 1rem; padding-right: 1rem; }
+      }
+      @media (max-width: 600px) {
+        .chat-mode #chat-messages { padding-bottom: 12rem; }
+        .chat-mode #chat-messages > article > div { max-width: 92%; }
+        .chat-mode #search-form { padding-left: .55rem; padding-right: .55rem; }
+        .chat-mode #search-form > p { font-size: 10px; }
+        .chat-mode #source-plus, .chat-mode #voice-button, .chat-mode #search-submit { width: 38px; height: 38px; flex-basis: 38px; }
+        .chat-mode #search-query { min-height: 40px; height: 40px; max-height: 150px; }
+        .history-item .history-actions { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      }
     </style>
   </head>
   <body class="min-h-screen font-sans text-slate-100 antialiased">
@@ -225,19 +437,28 @@
     </div>
 
     <div id="app-view" class="hidden min-h-screen">
-      <aside class="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/[.07] bg-slate-950/70 px-5 py-6 backdrop-blur-xl lg:flex">
+      <aside class="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/[.07] bg-slate-950/70 px-5 py-6 backdrop-blur-xl lg:flex">
         <a href="#" class="flex items-center gap-3 px-2">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-mint/10 text-mint">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V7l-8-4Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
           </span>
           <span><span class="block font-bold">আইনসাথী</span><span class="block text-[10px] tracking-[.18em] text-slate-500">LEGAL INTELLIGENCE</span></span>
         </a>
-        <p class="mb-3 mt-10 px-3 text-[11px] font-semibold uppercase tracking-[.2em] text-slate-600">ওয়ার্কস্পেস</p>
+        <button id="new-chat" class="mt-7 flex w-full items-center gap-3 rounded-xl border border-white/[.12] bg-white/[.04] px-3 py-3 text-left text-sm font-medium text-slate-100 transition hover:bg-white/[.08]" type="button"><span class="text-lg leading-none">＋</span>নতুন চ্যাট <kbd class="ml-auto text-[10px] text-slate-500">⌘ K</kbd></button>
+        <label class="relative mt-3 block">
+          <span class="sr-only">কথোপকথন খুঁজুন</span>
+          <span class="pointer-events-none absolute left-3 top-2.5 text-slate-500" aria-hidden="true">⌕</span>
+          <input id="conversation-search" class="w-full rounded-xl border border-white/[.08] bg-white/[.025] py-2.5 pl-9 pr-3 text-xs text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-white/20" type="search" placeholder="চ্যাট খুঁজুন">
+        </label>
+        <p class="mb-2 mt-6 px-3 text-[11px] font-semibold uppercase tracking-[.16em] text-slate-500">সাম্প্রতিক</p>
+        <div id="conversation-history" class="scrollbar-thin max-h-[34vh] min-h-0 space-y-1 overflow-y-auto"></div>
+        <p class="mb-3 mt-6 px-3 text-[11px] font-semibold uppercase tracking-[.2em] text-slate-600">ওয়ার্কস্পেস</p>
         <nav class="space-y-1" aria-label="প্রধান নেভিগেশন">
           <button data-view="search" class="nav-button flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-300 transition hover:bg-white/[.05]" aria-current="page"><span>⌕</span>আইনি অনুসন্ধান</button>
           <button data-view="bookmarks" class="nav-button flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-400 transition hover:bg-white/[.05]"><span>◇</span>কেস ফোল্ডার <span id="bookmark-count" class="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-xs">০</span></button>
           <button data-view="audit" class="nav-button flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-400 transition hover:bg-white/[.05]"><span>◷</span>অডিট লগ</button>
         </nav>
+        <button id="settings-button" class="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-400 transition hover:bg-white/[.05] hover:text-slate-200" type="button"><span aria-hidden="true">⚙</span>সেটিংস <span class="ml-auto text-[10px] text-slate-600">থিম</span></button>
         <div class="mt-auto rounded-2xl border border-mint/10 bg-mint/[.04] p-4">
           <div class="flex items-center gap-2 text-xs font-semibold text-mint"><span class="h-2 w-2 rounded-full bg-mint"></span>প্রমাণ-ভিত্তিক অনুসন্ধান</div>
           <p class="mt-2 text-xs leading-5 text-slate-500">ফলাফলে মূল আইনের ধারা ও আইনি অবস্থা যাচাই করুন।</p>
@@ -248,18 +469,20 @@
           <button class="logout-button rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-white" type="button" title="লগআউট" aria-label="লগআউট">↪</button>
         </div>
       </aside>
+      <div id="sidebar-scrim" class="mobile-sidebar-scrim" aria-hidden="true"></div>
 
       <div class="lg:pl-64">
         <header class="sticky top-0 z-20 border-b border-white/[.07] bg-ink/75 backdrop-blur-xl">
           <div class="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-4 py-3 sm:px-7 lg:px-10">
+            <button id="sidebar-toggle" class="absolute left-3 grid h-9 w-9 place-items-center rounded-lg text-slate-300 transition hover:bg-white/[.07] lg:hidden" type="button" aria-label="সাইডবার খুলুন" aria-expanded="false">☰</button>
             <div class="flex items-center gap-3 lg:hidden">
-              <span class="grid h-9 w-9 place-items-center rounded-xl bg-mint/10 text-mint">⚖</span>
-              <span class="font-bold">আইনসাথী</span>
+              <span class="ml-8 font-semibold">আইনসাথী <span class="text-slate-500">· আইনি সহায়ক</span></span>
             </div>
             <div class="hidden items-center gap-2 text-sm text-slate-500 sm:flex"><span>আইনি সহায়ক</span><span class="text-slate-700">/</span><span id="breadcrumb" class="text-slate-200">অনুসন্ধান</span></div>
             <div class="ml-auto flex items-center gap-3">
               <span class="hidden rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400 sm:inline-flex"><span class="mr-2 text-mint">●</span>ডাটাবেস সংযুক্ত</span>
               <a href="/docs" class="hidden rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 sm:inline-flex">API Docs ↗</a>
+              <button id="theme-toggle" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5" type="button" aria-label="থিম পরিবর্তন" aria-pressed="false" title="আলো/অন্ধকার থিম">◐</button>
               <button class="logout-button rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 lg:hidden" type="button">লগআউট</button>
             </div>
           </div>
@@ -358,25 +581,35 @@
                   </select>
                 </label>
               </div>
-              <div id="chat-messages" class="grid min-w-0 gap-4" role="log" aria-live="polite" aria-label="আইনসাথীর কথোপকথন">
-                <article class="flex min-w-0 justify-start">
-                  <div class="min-w-0 max-w-3xl overflow-hidden rounded-2xl rounded-tl-md border border-mint/15 bg-mint/[.045] px-4 py-3 sm:px-5">
-                    <p class="mb-1 text-xs font-semibold text-mint">আইনসাথী AI</p>
-                    <p class="break-words whitespace-normal text-sm leading-7 text-slate-200">স্বাগতম! আমি আইনসাথী—বাংলাদেশ শ্রম আইন ২০০৬, ভোক্তা অধিকার সংরক্ষণ আইন ২০০৯ এবং সাইবার সুরক্ষা আইন ২০২৬-এর সংকলিত ধারা থেকে তথ্য খুঁজে দিতে পারি। আপনার প্রশ্ন স্বাভাবিক বাংলায় লিখুন, অথবা <span class="font-semibold text-mint">bn-BD</span> ভয়েস ইনপুটে বলুন।</p>
+              <div id="chat-messages" class="grid min-w-0 gap-4 is-empty" role="log" aria-live="polite" aria-label="আইনসাথীর কথোপকথন">
+                <div id="empty-chat" class="empty-chat">
+                  <span class="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[.04] text-xl text-slate-200" aria-hidden="true">⚖</span>
+                  <h2 class="mt-5 text-2xl font-semibold text-slate-100 sm:text-3xl">আজ কী জানতে চান?</h2>
+                  <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">শ্রম, ভোক্তা অধিকার ও সাইবার আইন থেকে যাচাইকৃত সূত্রসহ উত্তর খুঁজুন।</p>
+                  <div class="mt-6 grid gap-2 text-left sm:grid-cols-2">
+                    <button class="prompt-card faq-card rounded-xl border border-white/[.09] bg-white/[.025] p-3 text-sm text-slate-300 transition hover:bg-white/[.06]" type="button" data-domain="labour_law" data-faq-query="শ্রম আইন অনুযায়ী অতিরিক্ত কাজের ওভারটাইম ভাতা কীভাবে হিসাব হবে?">ওভারটাইম ভাতা কীভাবে হিসাব হয়?<span class="mt-1 block text-xs text-slate-500">শ্রম আইন · ধারা খুঁজুন</span></button>
+                    <button class="prompt-card faq-card rounded-xl border border-white/[.09] bg-white/[.025] p-3 text-sm text-slate-300 transition hover:bg-white/[.06]" type="button" data-domain="consumer_rights" data-faq-query="মেয়াদোত্তীর্ণ পণ্য বিক্রি করলে কী প্রতিকার পাওয়া যায়?">মেয়াদোত্তীর্ণ পণ্য বিক্রির প্রতিকার কী?<span class="mt-1 block text-xs text-slate-500">ভোক্তা অধিকার · করণীয়</span></button>
+                    <button class="prompt-card faq-card rounded-xl border border-white/[.09] bg-white/[.025] p-3 text-sm text-slate-300 transition hover:bg-white/[.06]" type="button" data-domain="cyber_law" data-faq-query="অনলাইনে প্রতারণা ও আইডি হ্যাক হলে কী করণীয়?">অনলাইন প্রতারণার শিকার হলে কী করব?<span class="mt-1 block text-xs text-slate-500">সাইবার সুরক্ষা · পরামর্শ</span></button>
+                    <button class="prompt-card faq-card rounded-xl border border-white/[.09] bg-white/[.025] p-3 text-sm text-slate-300 transition hover:bg-white/[.06]" type="button" data-domain="labour_law" data-faq-query="শ্রম আইন অনুযায়ী বিনা নোটিশে চাকরিচ্যুত করলে কী ব্যবস্থা নেব?">বিনা নোটিশে চাকরিচ্যুত করলে কী করব?<span class="mt-1 block text-xs text-slate-500">শ্রম আইন · পদক্ষেপ</span></button>
                   </div>
-                </article>
+                </div>
               </div>
               <form id="search-form">
                 <label for="search-query" class="sr-only">আপনার আইনি প্রশ্ন</label>
-                <div class="relative mb-2 flex min-w-0 items-end gap-2 rounded-2xl border border-white/[.08] bg-slate-950/75 p-2 sm:gap-3 sm:p-3">
+                <div class="composer-shell relative mb-2 flex min-w-0 items-end gap-2 rounded-2xl border border-white/[.08] bg-slate-950/75 p-2 sm:gap-3 sm:p-3">
                   <div class="relative shrink-0">
                     <button id="source-plus" class="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-2xl leading-none text-slate-200 transition hover:border-violet-300/30 hover:bg-violet-300/10 hover:text-violet-100 disabled:opacity-50" type="button" aria-label="PDF উৎস যোগ করুন" aria-expanded="false" aria-controls="attachment-menu" title="উৎস যোগ করুন">+</button>
                     <div id="attachment-menu" class="absolute bottom-14 left-0 z-20 hidden w-56 rounded-xl border border-white/10 bg-slate-900 p-2 shadow-2xl">
-                      <button id="upload-pdf-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span class="text-violet-200" aria-hidden="true">▧</span> PDF আপলোড করুন</button>
+                      <button id="upload-pdf-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span class="text-violet-200" aria-hidden="true">⇧</span> PDF উৎস যোগ করুন</button>
                       <p class="px-3 pb-1 text-[10px] leading-4 text-slate-500">শুধু ৩টি সমর্থিত আইনের PDF</p>
+                      <button id="attach-image-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span aria-hidden="true">▧</span> ছবি সংযুক্ত করুন</button>
+                      <button id="add-pdf-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span aria-hidden="true">▤</span> PDF তৈরি করুন</button>
+                      <button id="export-chat-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span aria-hidden="true">↓</span> কথোপকথন রপ্তানি</button>
+                      <div class="my-1 border-t border-white/[.08]"></div>
+                      <button id="clear-chat-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-rose-200 transition hover:bg-rose-300/[.08]" type="button"><span aria-hidden="true">⌫</span> কথোপকথন মুছুন</button>
                     </div>
                   </div>
-                  <textarea id="search-query" class="field min-h-11 min-w-0 flex-1 resize-y break-words whitespace-normal overflow-hidden border-0 bg-transparent px-2 py-2 text-base leading-7 placeholder:text-slate-600 focus:border-0 focus:shadow-none" maxlength="3000" required placeholder="আইনি প্রশ্ন লিখুন বা বলুন…"></textarea>
+                  <textarea id="search-query" class="field min-h-11 min-w-0 flex-1 resize-y break-words whitespace-normal overflow-hidden border-0 bg-transparent px-2 py-2 text-base leading-7 placeholder:text-slate-600 focus:border-0 focus:shadow-none" maxlength="3000" required placeholder="Ask anything..."></textarea>
                   <div class="flex shrink-0 items-center gap-2">
                     <button id="voice-button" class="relative grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-slate-900/80 text-slate-300 transition hover:border-mint/30 hover:text-mint" type="button" title="বাংলায় কথা বলে লিখুন" aria-label="বাংলায় কথা বলে লিখুন">
                       <span id="voice-dot" class="absolute left-2 top-2 h-2 w-2 rounded-full bg-slate-500"></span>
@@ -451,6 +684,26 @@
       </div>
     </dialog>
 
+    <dialog id="conversation-modal" class="w-[min(92vw,460px)] max-w-none rounded-2xl border border-white/10 bg-panel p-0 text-slate-100 shadow-2xl">
+      <form id="conversation-form">
+        <div class="flex items-start justify-between gap-4 border-b border-white/[.08] px-5 py-4">
+          <div>
+            <h2 id="conversation-modal-title" class="text-lg font-semibold">কথোপকথন</h2>
+            <p id="conversation-modal-message" class="mt-1 text-sm leading-6 text-slate-400"></p>
+          </div>
+          <button id="conversation-modal-close" class="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white" type="button" aria-label="বন্ধ করুন">✕</button>
+        </div>
+        <div class="p-5">
+          <label id="conversation-name-label" class="block text-sm text-slate-300" for="conversation-name">নতুন নাম</label>
+          <input id="conversation-name" class="field mt-2 px-3 py-2.5 text-sm" maxlength="100">
+          <div class="mt-5 flex justify-end gap-2">
+            <button id="conversation-modal-cancel" class="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/5" type="button">বাতিল</button>
+            <button id="conversation-modal-confirm" class="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-200" type="submit">সংরক্ষণ</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
     <script>
       const API = "/api";
       const ROLE_NAMES = { citizen: "নাগরিক", lawyer: "আইনজীবী", student: "শিক্ষার্থী" };
@@ -468,6 +721,12 @@
       let draftObjectUrl = null;
       let activeDraftResult = null;
       let sourceUploadInProgress = false;
+      let conversations = [];
+      let activeConversationId = null;
+      let conversationUserId = null;
+      let searchController = null;
+      let conversationDialogAction = null;
+      let conversationDialogId = null;
 
       const byId = (id) => document.getElementById(id);
       const authView = byId("auth-view");
@@ -479,8 +738,10 @@
       const searchForm = byId("search-form");
       const searchQuery = byId("search-query");
       const chatMessages = byId("chat-messages");
+      const emptyChat = byId("empty-chat");
       const searchMessage = byId("search-message");
       const draftModal = byId("draft-modal");
+      const conversationModal = byId("conversation-modal");
 
       async function apiRequest(path, options = {}) {
         const isFormData = options.body instanceof FormData;
@@ -551,6 +812,8 @@
         }
         authView.classList.add("hidden");
         appView.classList.remove("hidden");
+        appView.classList.add("chat-mode");
+        if (conversationUserId !== String(currentUser.id)) loadConversationState();
         const name = currentUser.full_name || "ব্যবহারকারী";
         const initial = Array.from(name.trim())[0] || "আ";
         byId("welcome-name").textContent = name;
@@ -641,8 +904,214 @@
           else button.removeAttribute("aria-current");
         });
         byId("breadcrumb").textContent = names[viewName] || names.search;
+        closeMobileSidebar();
         if (viewName === "bookmarks") loadBookmarks();
         if (viewName === "audit") loadAuditLogs();
+        appView.classList.toggle("chat-mode", viewName === "search");
+      }
+
+      function conversationStorageKey() {
+        return `legal-assistant-conversations-${currentUser.id}`;
+      }
+
+      function loadConversationState() {
+        conversationUserId = String(currentUser.id);
+        conversations = [];
+        activeConversationId = null;
+        try {
+          const saved = JSON.parse(localStorage.getItem(conversationStorageKey()) || "{}");
+          if (Array.isArray(saved.conversations)) conversations = saved.conversations;
+          if (Object.prototype.hasOwnProperty.call(saved, "activeConversationId")) {
+            if (saved.activeConversationId && conversations.some((item) => item.id === saved.activeConversationId)) {
+              activeConversationId = saved.activeConversationId;
+            }
+          } else if (conversations.length) {
+            activeConversationId = conversations[0].id;
+          }
+        } catch (error) {
+          showGlobalMessage(`সংরক্ষিত কথোপকথন পড়া যায়নি: ${error.message}`, true);
+        }
+        renderConversationHistory();
+        renderActiveConversation();
+      }
+
+      function saveConversationState() {
+        if (!currentUser) return;
+        try {
+          localStorage.setItem(conversationStorageKey(), JSON.stringify({
+            conversations,
+            activeConversationId
+          }));
+        } catch (error) {
+          showGlobalMessage(`কথোপকথন ব্রাউজারে সংরক্ষণ করা যায়নি: ${error.message}`, true);
+        }
+        renderConversationHistory();
+      }
+
+      function renderConversationHistory() {
+        const list = byId("conversation-history");
+        if (!list) return;
+        const search = (byId("conversation-search")?.value || "").trim().toLocaleLowerCase();
+        list.replaceChildren();
+        const visible = conversations
+          .slice()
+          .sort((left, right) => right.updatedAt - left.updatedAt)
+          .filter((item) => !search || item.title.toLocaleLowerCase().includes(search));
+        if (!visible.length) {
+          list.append(makeText("p", "px-3 py-2 text-xs leading-5 text-slate-600", search ? "কোনো কথোপকথন মেলেনি।" : "এখনও কোনো চ্যাট নেই।"));
+          return;
+        }
+        visible.forEach((item) => {
+          const row = document.createElement("div");
+          row.className = "history-item group flex items-center gap-1 rounded-xl text-xs text-slate-400 transition hover:bg-white/[.05] hover:text-slate-200";
+          const open = makeText("button", "min-w-0 flex-1 truncate rounded-xl px-3 py-2.5 text-left", item.title || "নতুন কথোপকথন");
+          open.type = "button";
+          open.setAttribute("aria-current", String(item.id === activeConversationId));
+          open.addEventListener("click", () => openConversation(item.id));
+          const actions = document.createElement("span");
+          actions.className = "history-actions flex shrink-0";
+          const rename = makeText("button", "rounded-md px-1.5 py-1 text-slate-500 hover:bg-white/10 hover:text-white", "✎");
+          rename.type = "button";
+          rename.title = "নাম পরিবর্তন";
+          rename.setAttribute("aria-label", `${item.title} নাম পরিবর্তন`);
+          rename.addEventListener("click", () => renameConversation(item));
+          const remove = makeText("button", "rounded-md px-1.5 py-1 text-slate-500 hover:bg-rose-300/10 hover:text-rose-200", "×");
+          remove.type = "button";
+          remove.title = "কথোপকথন মুছুন";
+          remove.setAttribute("aria-label", `${item.title} মুছুন`);
+          remove.addEventListener("click", () => deleteConversation(item.id));
+          actions.append(rename, remove);
+          row.append(open, actions);
+          list.append(row);
+        });
+      }
+
+      function renderActiveConversation() {
+        const conversation = conversations.find((item) => item.id === activeConversationId);
+        chatMessages.replaceChildren();
+        if (!conversation || !conversation.messages.length) {
+          chatMessages.classList.add("is-empty");
+          chatMessages.append(emptyChat);
+          emptyChat.hidden = false;
+          return;
+        }
+        chatMessages.classList.remove("is-empty");
+        conversation.messages.forEach((message) => {
+          appendUserMessage(message.query);
+          if (message.result) appendAssistantResponse(message.result, message.isError, message.query);
+          else appendAssistantResponse(
+            { status: "error", message: "এই অনুসন্ধানটি শেষ হয়নি। আবার পাঠাতে পারেন।" },
+            true,
+            message.query
+          );
+        });
+        const last = conversation.messages[conversation.messages.length - 1];
+        selectedSearchQuery = last?.query || "";
+        selectDomain(conversation.domain || "all");
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      function openConversation(id) {
+        activeConversationId = id;
+        saveConversationState();
+        renderActiveConversation();
+        closeMobileSidebar();
+      }
+
+      function renameConversation(conversation) {
+        openConversationDialog(conversation, "rename");
+      }
+
+      function deleteConversation(id) {
+        const conversation = conversations.find((item) => item.id === id);
+        if (conversation) openConversationDialog(conversation, "delete");
+      }
+
+      function openConversationDialog(conversation, action) {
+        conversationDialogAction = action;
+        conversationDialogId = conversation.id;
+        const deleting = action === "delete";
+        byId("conversation-modal-title").textContent = deleting ? "কথোপকথন মুছুন" : "নাম পরিবর্তন";
+        byId("conversation-modal-message").textContent = deleting
+          ? `“${conversation.title}” এবং এর সব বার্তা মুছে যাবে। এই কাজটি ফিরিয়ে নেওয়া যাবে না।`
+          : "এই কথোপকথনকে চিনতে সুবিধা হয় এমন একটি নাম দিন।";
+        byId("conversation-name-label").classList.toggle("hidden", deleting);
+        byId("conversation-name").classList.toggle("hidden", deleting);
+        byId("conversation-name").value = deleting ? "" : conversation.title;
+        byId("conversation-modal-confirm").textContent = deleting ? "মুছে ফেলুন" : "নাম সংরক্ষণ";
+        byId("conversation-modal-confirm").classList.toggle("bg-rose-400", deleting);
+        byId("conversation-modal-confirm").classList.toggle("text-white", deleting);
+        byId("conversation-modal-confirm").classList.toggle("bg-white", !deleting);
+        byId("conversation-modal-confirm").classList.toggle("text-slate-900", !deleting);
+        conversationModal.showModal();
+        if (!deleting) byId("conversation-name").focus();
+      }
+
+      function completeConversationDialog(event) {
+        event.preventDefault();
+        const conversation = conversations.find((item) => item.id === conversationDialogId);
+        if (!conversation || !conversationDialogAction) {
+          conversationModal.close();
+          return;
+        }
+        if (conversationDialogAction === "rename") {
+          const title = byId("conversation-name").value.trim();
+          if (!title) {
+            showGlobalMessage("কথোপকথনের নাম ফাঁকা রাখা যাবে না।", true);
+            byId("conversation-name").focus();
+            return;
+          }
+          conversation.title = title.slice(0, 100);
+        } else {
+          conversations = conversations.filter((item) => item.id !== conversation.id);
+          if (activeConversationId === conversation.id) activeConversationId = conversations[0]?.id || null;
+        }
+        conversationModal.close();
+        saveConversationState();
+        renderActiveConversation();
+      }
+
+      function beginConversationTurn(query) {
+        let conversation = conversations.find((item) => item.id === activeConversationId);
+        if (!conversation) {
+          conversation = {
+            id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            title: query.slice(0, 54),
+            updatedAt: Date.now(),
+            domain: selectedDomain,
+            messages: []
+          };
+          conversations.unshift(conversation);
+          activeConversationId = conversation.id;
+        }
+        const message = { query, result: null, isError: false };
+        conversation.messages.push(message);
+        conversation.updatedAt = Date.now();
+        conversation.domain = selectedDomain;
+        saveConversationState();
+        chatMessages.classList.remove("is-empty");
+        emptyChat.hidden = true;
+        appendUserMessage(query);
+        return { conversation, message };
+      }
+
+      function startNewChat() {
+        if (searchController) searchController.abort();
+        activeConversationId = null;
+        saveConversationState();
+        selectedSearchQuery = "";
+        searchQuery.value = "";
+        resetComposerHeight();
+        renderActiveConversation();
+        setSearchMessage("");
+        closeMobileSidebar();
+        searchQuery.focus();
+      }
+
+      function closeMobileSidebar() {
+        appView.classList.remove("sidebar-open");
+        byId("sidebar-scrim").classList.remove("open");
+        byId("sidebar-toggle").setAttribute("aria-expanded", "false");
       }
 
       function setSearchMessage(text, kind = "info") {
@@ -743,7 +1212,7 @@
       function appendUserMessage(query) {
         const row = document.createElement("article");
         row.className = "flex min-w-0 justify-end";
-        const bubble = makeText("p", "min-w-0 max-w-3xl break-words whitespace-normal overflow-hidden rounded-2xl rounded-tr-md border border-sky-300/15 bg-sky-300/[.07] px-4 py-3 text-sm leading-7 text-slate-100 sm:px-5", query);
+        const bubble = makeText("p", "min-w-0 max-w-3xl break-words whitespace-pre-wrap overflow-hidden rounded-2xl rounded-tr-md border border-sky-300/15 bg-sky-300/[.07] px-4 py-3 text-sm leading-7 text-slate-100 sm:px-5", query);
         bubble.setAttribute("aria-label", "আপনার প্রশ্ন");
         row.append(bubble);
         chatMessages.append(row);
@@ -883,11 +1352,135 @@
         container.append(roadmap);
       }
 
-      function appendAssistantResponse(result, isError = false, query = selectedSearchQuery) {
+      function assistantResponseText(result) {
+        const parts = [];
+        if (result.message) parts.push(result.message);
+        if (Array.isArray(result.step_by_step_plan)) {
+          result.step_by_step_plan.forEach((step, index) => {
+            parts.push(`ধাপ ${step.step_number || index + 1}: ${step.title || "পরবর্তী পদক্ষেপ"}`);
+            if (step.description) parts.push(step.description);
+          });
+        }
+        if (Array.isArray(result.results)) {
+          result.results.forEach((item) => {
+            parts.push(`ধারা ${item.section_number || "—"}: ${item.section_title || "আইনি বিধান"}`);
+            if (item.content) parts.push(item.content);
+          });
+        }
+        if (Array.isArray(result.statute_citations)) {
+          result.statute_citations.forEach((item) => {
+            parts.push(`ধারা ${item.section_number || "—"}: ${item.section_title || "আইনি বিধান"}`);
+            if (item.content) parts.push(item.content);
+          });
+        }
+        if (Array.isArray(result.required_documents) && result.required_documents.length) {
+          parts.push(`প্রয়োজনীয় কাগজপত্র:\n${result.required_documents.map((item) => `• ${item}`).join("\n")}`);
+        }
+        if (Array.isArray(result.source_summary)) {
+          result.source_summary.forEach((item) => {
+            parts.push(`${item.citation || `পৃষ্ঠা ${item.page_number || "—"}`}\n${item.excerpt || ""}`);
+          });
+        }
+        if (result.disclaimer) parts.push(result.disclaimer);
+        return parts.filter(Boolean).join("\n\n") || "উত্তরের বিষয়বস্তু পাওয়া যায়নি।";
+      }
+
+      function exportConversationPdf(messages) {
+        if (!messages.length) {
+          showGlobalMessage("PDF তৈরি করার আগে একটি কথোপকথন করুন।", true);
+          return;
+        }
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) {
+          showGlobalMessage("PDF তৈরি করতে পপ-আপ উইন্ডো খোলার অনুমতি দিন।", true);
+          return;
+        }
+        const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+        })[character]);
+        const entries = messages.map((message) => {
+          const result = message.result || {};
+          const citations = (Array.isArray(result.statute_citations) ? result.statute_citations : [])
+            .map((item) => `<tr><td>ধারা ${escapeHtml(item.section_number || "—")}</td><td>${escapeHtml(item.section_title || "আইনি বিধান")}</td><td>${escapeHtml(item.content || "")}</td></tr>`).join("");
+          const steps = (Array.isArray(result.step_by_step_plan) ? result.step_by_step_plan : [])
+            .map((step, index) => `<li><strong>${escapeHtml(step.step_number || index + 1)}. ${escapeHtml(step.title || "পরবর্তী পদক্ষেপ")}</strong><p>${escapeHtml(step.description || "")}</p></li>`).join("");
+          const documents = (Array.isArray(result.required_documents) ? result.required_documents : [])
+            .map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+          const sources = (Array.isArray(result.source_summary) ? result.source_summary : [])
+            .map((item) => `<section class="statute"><h3>${escapeHtml(item.citation || `পৃষ্ঠা ${item.page_number || "—"}`)}</h3><p>${escapeHtml(item.excerpt || "")}</p></section>`).join("");
+          const statutes = (Array.isArray(result.results) ? result.results : [])
+            .map((item) => `<section class="statute"><h3>ধারা ${escapeHtml(item.section_number || "—")}: ${escapeHtml(item.section_title || "আইনি বিধান")}</h3><p>${escapeHtml(item.content || "")}</p><small>${escapeHtml(item.act_name || item.domain_bn || "")} · ${escapeHtml(item.legal_status || "")}</small></section>`).join("");
+          return `<article class="turn"><h2>আপনি</h2><p class="question">${escapeHtml(message.query)}</p><h2>আইনসাথী</h2><p>${escapeHtml(result.message || "")}</p>${sources ? `<h3>আপলোডকৃত উৎস</h3>${sources}` : ""}${steps ? `<h3>ধাপে ধাপে করণীয়</h3><ol>${steps}</ol>` : ""}${documents ? `<h3>প্রয়োজনীয় কাগজপত্র</h3><ul>${documents}</ul>` : ""}${citations ? `<h3>যাচাইকৃত আইনি সূত্র</h3><table><thead><tr><th>ধারা</th><th>শিরোনাম</th><th>বিধান</th></tr></thead><tbody>${citations}</tbody></table>` : ""}${statutes}${result.disclaimer ? `<p class="notice">${escapeHtml(result.disclaimer)}</p>` : ""}</article>`;
+        }).join("");
+        printWindow.document.open();
+        printWindow.document.write(`<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>আইনসাথী — কথোপকথন</title><style>
+          @page{size:A4;margin:18mm}*{box-sizing:border-box}body{font:11pt/1.65 "Noto Sans Bengali","Nirmala UI",sans-serif;color:#20242a;margin:0}main{max-width:780px;margin:auto}header{border-bottom:2px solid #347a68;padding-bottom:12px;margin-bottom:22px}header h1{font-size:20pt;margin:0}header p{margin:4px 0;color:#58636a}.turn{margin:0 0 25px;padding:0 0 18px;border-bottom:1px solid #dfe4e3;break-inside:avoid}.turn h2{font-size:10pt;color:#347a68;margin:12px 0 4px}.turn h3{font-size:12pt;margin:14px 0 6px}.turn p{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0}.question{background:#f1f3f5;border-radius:8px;padding:9px}.statute{border:1px solid #dfe4e3;border-radius:8px;padding:10px;margin:10px 0;break-inside:avoid}.statute small{color:#647078}li{margin:6px 0}table{width:100%;border-collapse:collapse;font-size:9pt}th,td{border:1px solid #dfe4e3;padding:7px;vertical-align:top;text-align:left}th{background:#f1f5f4}
+          </style></head><body><main><header><h1>আইনসাথী · কথোপকথন</h1><p>${new Date().toLocaleString("bn-BD")}</p></header>${entries}<footer>তথ্য সংকলিত আইনি পাঠের ভিত্তিতে। প্রয়োজনে আইনজীবীর সঙ্গে যাচাই করুন।</footer></main></body></html>`);
+        printWindow.document.close();
+        window.setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+        }, 350);
+      }
+
+      function addAssistantActions(container, result, query) {
+        const actions = document.createElement("div");
+        actions.className = "answer-actions";
+        const action = (label, title, handler) => {
+          const button = makeText("button", "", label);
+          button.type = "button";
+          button.title = title;
+          button.setAttribute("aria-label", title);
+          button.addEventListener("click", handler);
+          actions.append(button);
+          return button;
+        };
+        action("▢", "উত্তর কপি করুন", async () => {
+          try {
+            await navigator.clipboard.writeText(assistantResponseText(result));
+            showGlobalMessage("উত্তর ক্লিপবোর্ডে কপি করা হয়েছে।");
+          } catch (error) {
+            showGlobalMessage(`উত্তর কপি করা যায়নি: ${error.message}`, true);
+          }
+        });
+        action("▤", "উত্তর PDF-এ যোগ করুন", () => exportConversationPdf([{ query, result }]));
+        action("↻", "আবার উত্তর তৈরি করুন", () => runSearch(query));
+        const like = action("♡", "এই উত্তরটি সহায়ক", (event) => {
+          const pressed = event.currentTarget.getAttribute("aria-pressed") === "true";
+          event.currentTarget.setAttribute("aria-pressed", String(!pressed));
+        });
+        like.dataset.feedback = "like";
+        const dislike = action("♧", "এই উত্তরটি সহায়ক নয়", (event) => {
+          const pressed = event.currentTarget.getAttribute("aria-pressed") === "true";
+          event.currentTarget.setAttribute("aria-pressed", String(!pressed));
+        });
+        dislike.dataset.feedback = "dislike";
+        action("▶", "উত্তর পড়ে শুনুন", (event) => {
+          if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+            showGlobalMessage("এই ব্রাউজারে Read Aloud সমর্থিত নয়।", true);
+            return;
+          }
+          if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            event.currentTarget.textContent = "▶";
+            return;
+          }
+          const utterance = new SpeechSynthesisUtterance(assistantResponseText(result));
+          utterance.lang = "bn-BD";
+          const playButton = event.currentTarget;
+          utterance.onerror = () => showGlobalMessage("কণ্ঠে উত্তর পড়া যায়নি।", true);
+          window.speechSynthesis.speak(utterance);
+          playButton.textContent = "■";
+          utterance.onend = () => { playButton.textContent = "▶"; };
+        });
+        container.append(actions);
+      }
+
+      function appendAssistantResponse(result, isError = false, query = selectedSearchQuery, withActions = true) {
         const row = document.createElement("article");
         row.className = "flex min-w-0 justify-start";
         const bubble = document.createElement("div");
-        bubble.className = `min-w-0 max-w-4xl break-words whitespace-normal overflow-hidden rounded-2xl rounded-tl-md border px-4 py-3 sm:px-5 ${isError ? "border-rose-300/20 bg-rose-300/[.05]" : "border-mint/15 bg-mint/[.045]"}`;
+        bubble.className = `assistant-message min-w-0 max-w-4xl break-words whitespace-normal overflow-hidden ${isError ? "text-rose-100" : ""}`;
         bubble.append(makeText("p", `mb-1 text-xs font-semibold ${isError ? "text-rose-200" : "text-mint"}`, isError ? "আইনসাথী · নোটিশ" : "আইনসাথী AI"));
 
         if (result.status === "chat") {
@@ -920,6 +1513,7 @@
           );
           bubble.append(notice);
         }
+        if (withActions) addAssistantActions(bubble, result, query);
         row.append(bubble);
         chatMessages.append(row);
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1029,43 +1623,90 @@
         return row;
       }
 
-      async function runSearch(submittedQuery = searchQuery.value) {
+      function setSearchButtonRunning(running) {
+        const button = byId("search-submit");
+        button.replaceChildren();
+        if (running) {
+          button.append(makeText("span", "text-base font-bold", "■"));
+          button.setAttribute("aria-label", "উত্তর তৈরি থামান");
+          button.title = "থামান";
+          button.classList.add("bg-rose-400", "text-white");
+          button.classList.remove("bg-mint", "text-slate-950");
+        } else {
+          const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          icon.setAttribute("class", "h-4 w-4");
+          icon.setAttribute("viewBox", "0 0 24 24");
+          icon.setAttribute("fill", "none");
+          icon.setAttribute("stroke", "currentColor");
+          icon.setAttribute("stroke-width", "2");
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", "M5 12h14M13 6l6 6-6 6");
+          icon.append(path);
+          button.append(icon, makeText("span", "sr-only", "পাঠান"));
+          button.setAttribute("aria-label", "প্রশ্ন পাঠান");
+          button.title = "পাঠান";
+          button.classList.remove("bg-rose-400", "text-white");
+          button.classList.add("bg-mint", "text-slate-950");
+        }
+      }
+
+      async function runSearch(submittedQuery = searchQuery.value, requestedDomain = selectedDomain) {
+        if (searchController) {
+          searchController.abort();
+          return;
+        }
         const query = submittedQuery.trim();
         if (!query) {
+          searchQuery.value = "";
+          resetComposerHeight();
           searchQuery.focus();
           setSearchMessage("অনুগ্রহ করে আপনার প্রশ্নটি লিখুন বা বাংলায় বলুন।", "warning");
           return;
         }
-        searchQuery.value = query;
+        const domain = requestedDomain;
+        selectDomain(domain);
+        searchQuery.value = "";
+        resetComposerHeight();
         selectedSearchQuery = query;
-        appendUserMessage(query);
+        const { conversation, message } = beginConversationTurn(query);
         const typingIndicator = createTypingIndicator();
-        const button = byId("search-submit");
-        button.disabled = true;
-        byId("search-submit-label").textContent = "খুঁজছি…";
+        searchController = new AbortController();
+        setSearchButtonRunning(true);
         setSearchMessage("");
         try {
           const result = await apiRequest("/search", {
             method: "POST",
+            signal: searchController.signal,
             body: JSON.stringify({
               query,
-              domain: selectedDomain,
+              domain,
               top_k: Number(byId("top-k").value),
               user_id: currentUser?.id
             })
           });
           typingIndicator.remove();
-          appendAssistantResponse(result, false, query);
+          message.result = result;
+          conversation.updatedAt = Date.now();
+          saveConversationState();
+          if (activeConversationId === conversation.id) appendAssistantResponse(result, false, query);
         } catch (error) {
           typingIndicator.remove();
-          appendAssistantResponse(
-            { status: "error", message: error.message || "দুঃখিত, এই মুহূর্তে অনুসন্ধান সম্পন্ন করা যাচ্ছে না। অনুগ্রহ করে কিছুক্ষণ পরে আবার চেষ্টা করুন।" },
-            true,
-            query
-          );
+          if (error.name === "AbortError") {
+            message.result = { status: "error", message: "অনুসন্ধান থামানো হয়েছে।" };
+            message.isError = false;
+          } else {
+            message.result = {
+              status: "error",
+              message: error.message || "দুঃখিত, এই মুহূর্তে অনুসন্ধান সম্পন্ন করা যাচ্ছে না। অনুগ্রহ করে কিছুক্ষণ পরে আবার চেষ্টা করুন।"
+            };
+            message.isError = true;
+          }
+          conversation.updatedAt = Date.now();
+          saveConversationState();
+          if (activeConversationId === conversation.id) appendAssistantResponse(message.result, message.isError, query);
         } finally {
-          button.disabled = false;
-          byId("search-submit-label").textContent = "পাঠান";
+          searchController = null;
+          setSearchButtonRunning(false);
         }
       }
 
@@ -1168,8 +1809,9 @@
         const query = searchQuery.value.trim() || prompts[source.detected_domain] || "এই আইনি নথি অনুযায়ী কী করণীয়?";
         selectedSearchQuery = query;
         selectDomain(source.detected_domain);
-        searchQuery.value = query;
-        appendUserMessage(query);
+        searchQuery.value = "";
+        resetComposerHeight();
+        const { conversation, message } = beginConversationTurn(query);
         const typingIndicator = createTypingIndicator();
         button.disabled = true;
         try {
@@ -1184,10 +1826,17 @@
             })
           });
           typingIndicator.remove();
-          appendAssistantResponse(result, false, query);
+          message.result = result;
+          conversation.updatedAt = Date.now();
+          saveConversationState();
+          if (activeConversationId === conversation.id) appendAssistantResponse(result, false, query);
         } catch (error) {
           typingIndicator.remove();
-          appendAssistantResponse({ status: "error", message: error.message || "PDF বিশ্লেষণ করা যায়নি।" }, true, query);
+          message.result = { status: "error", message: error.message || "PDF বিশ্লেষণ করা যায়নি।" };
+          message.isError = true;
+          conversation.updatedAt = Date.now();
+          saveConversationState();
+          if (activeConversationId === conversation.id) appendAssistantResponse(message.result, true, query);
         } finally {
           button.disabled = false;
         }
@@ -1269,6 +1918,11 @@
       }
 
       function showGlobalMessage(text, isError = false) {
+        if (appView.classList.contains("chat-mode")) {
+          setSearchMessage(text, isError ? "error" : "info");
+          window.setTimeout(() => setSearchMessage(""), 5000);
+          return;
+        }
         const element = byId("global-message");
         element.textContent = text;
         element.classList.remove("hidden", "border-emerald-300/20", "bg-emerald-300/10", "text-emerald-100", "border-rose-300/20", "bg-rose-300/10", "text-rose-100");
@@ -1395,6 +2049,9 @@
         speechRecognition.interimResults = true;
         speechRecognition.maxAlternatives = 1;
         speechRecognition.onstart = () => {
+          byId("voice-button").classList.add("voice-active");
+          byId("voice-button").setAttribute("aria-label", "শোনা বন্ধ করুন");
+          byId("voice-button").title = "শোনা বন্ধ করুন";
           byId("voice-dot").classList.add("voice-pulse", "bg-rose-400");
           byId("voice-dot").classList.remove("bg-slate-500");
           byId("voice-status").classList.remove("hidden");
@@ -1409,6 +2066,7 @@
             else interim += text;
           }
           searchQuery.value = `${finalTranscript}${interim}`.trim();
+          resizeComposer();
         };
         speechRecognition.onerror = (event) => {
           const messages = {
@@ -1419,13 +2077,19 @@
           setSearchMessage(messages[event.error] || "ভয়েস ইনপুট চালু করা যায়নি।", "warning");
         };
         speechRecognition.onend = () => {
-          const shouldSearch = Boolean(finalTranscript.trim());
+          const hasTranscript = Boolean(finalTranscript.trim());
           speechRecognition = null;
+          byId("voice-button").classList.remove("voice-active");
+          byId("voice-button").setAttribute("aria-label", "বাংলায় কথা বলে লিখুন");
+          byId("voice-button").title = "বাংলায় কথা বলে লিখুন";
           byId("voice-dot").classList.remove("voice-pulse", "bg-rose-400");
           byId("voice-dot").classList.add("bg-slate-500");
           byId("voice-status").classList.add("hidden");
           byId("voice-label").textContent = "বাংলায় বলুন";
-          if (shouldSearch) runSearch();
+          if (hasTranscript) {
+            setSearchMessage("কথা লিখে নেওয়া হয়েছে — পাঠানোর আগে সম্পাদনা করতে পারেন।");
+            searchQuery.focus();
+          }
         };
         try {
           speechRecognition.start();
@@ -1437,6 +2101,54 @@
 
       function stopVoiceInput() {
         if (speechRecognition) speechRecognition.stop();
+      }
+
+      function resizeComposer() {
+        searchQuery.style.height = "auto";
+        const maxHeight = window.matchMedia("(max-width: 600px)").matches ? 150 : 180;
+        searchQuery.style.height = `${Math.min(searchQuery.scrollHeight, maxHeight)}px`;
+        searchQuery.style.overflowY = searchQuery.scrollHeight > maxHeight ? "auto" : "hidden";
+      }
+
+      function resetComposerHeight() {
+        searchQuery.style.height = "";
+        searchQuery.style.overflowY = "hidden";
+      }
+
+      function closeAttachmentMenu() {
+        byId("attachment-menu").classList.add("hidden");
+        byId("source-plus").setAttribute("aria-expanded", "false");
+      }
+
+      function clearCurrentConversation() {
+        if (!activeConversationId) {
+          showGlobalMessage("মুছে ফেলার মতো কোনো কথোপকথন নেই।", true);
+          closeAttachmentMenu();
+          return;
+        }
+        deleteConversation(activeConversationId);
+        closeAttachmentMenu();
+      }
+
+      function downloadConversationText() {
+        const conversation = conversations.find((item) => item.id === activeConversationId);
+        if (!conversation || !conversation.messages.length) {
+          showGlobalMessage("রপ্তানি করার মতো কোনো কথোপকথন নেই।", true);
+          return;
+        }
+        const text = conversation.messages.map((message) => [
+          `আপনি:\n${message.query}`,
+          `আইনসাথী:\n${assistantResponseText(message.result || { message: "উত্তরের অপেক্ষায়" })}`
+        ].join("\n\n")).join("\n\n" + "—".repeat(24) + "\n\n");
+        const fileUrl = URL.createObjectURL(new Blob(["\ufeff", text], { type: "text/plain;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = fileUrl;
+        link.download = `${conversation.title.replace(/[\\/:*?"<>|]/g, "-").slice(0, 60) || "কথোপকথন"}.txt`;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(fileUrl), 1000);
+        closeAttachmentMenu();
       }
 
       function selectDomain(domain) {
@@ -1473,9 +2185,11 @@
       });
       document.querySelectorAll(".faq-card").forEach((button) => {
         button.addEventListener("click", () => {
-          selectDomain(button.dataset.domain);
-          searchQuery.value = button.dataset.faqQuery;
-          runSearch(button.dataset.faqQuery);
+          const query = button.dataset.faqQuery;
+          const domain = button.dataset.domain;
+          selectDomain(domain);
+          searchQuery.value = query;
+          runSearch(query, domain);
         });
       });
       byId("faq-toggle").addEventListener("click", (event) => {
@@ -1486,7 +2200,34 @@
       byId("faq-tab").addEventListener("click", () => setWorkspacePanel("faq"));
       byId("sources-tab").addEventListener("click", () => setWorkspacePanel("sources"));
       searchForm.addEventListener("submit", (event) => { event.preventDefault(); runSearch(); });
+      searchQuery.addEventListener("input", resizeComposer);
+      searchQuery.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          searchForm.requestSubmit();
+        }
+      });
       byId("voice-button").addEventListener("click", startVoiceInput);
+      byId("new-chat").addEventListener("click", startNewChat);
+      byId("conversation-search").addEventListener("input", renderConversationHistory);
+      byId("sidebar-toggle").addEventListener("click", () => {
+        const open = !appView.classList.contains("sidebar-open");
+        appView.classList.toggle("sidebar-open", open);
+        byId("sidebar-scrim").classList.toggle("open", open);
+        byId("sidebar-toggle").setAttribute("aria-expanded", String(open));
+      });
+      byId("sidebar-scrim").addEventListener("click", closeMobileSidebar);
+      byId("theme-toggle").addEventListener("click", () => {
+        const light = appView.classList.toggle("light-mode");
+        byId("theme-toggle").setAttribute("aria-pressed", String(light));
+        try {
+          localStorage.setItem("legal-assistant-theme", light ? "light" : "dark");
+        } catch (error) {
+          showGlobalMessage(`থিম পছন্দ সংরক্ষণ করা যায়নি: ${error.message}`, true);
+        }
+      });
+      byId("settings-button").addEventListener("click", () => byId("theme-toggle").click());
+      byId("new-chat").setAttribute("title", "নতুন কথোপকথন");
       byId("refresh-bookmarks").addEventListener("click", loadBookmarks);
       byId("refresh-audit").addEventListener("click", loadAuditLogs);
       byId("refresh-sources").addEventListener("click", loadSources);
@@ -1497,11 +2238,21 @@
         menu.classList.toggle("hidden", expanded);
       });
       byId("upload-pdf-option").addEventListener("click", () => {
-        byId("attachment-menu").classList.add("hidden");
-        byId("source-plus").setAttribute("aria-expanded", "false");
+        closeAttachmentMenu();
         setWorkspacePanel("sources");
         byId("source-file").click();
       });
+      byId("attach-image-option").addEventListener("click", () => {
+        closeAttachmentMenu();
+        showGlobalMessage("ছবি সংযুক্তি বর্তমানে সমর্থিত নয়। আইনি নথির জন্য PDF উৎস যোগ করুন।", true);
+      });
+      byId("add-pdf-option").addEventListener("click", () => {
+        closeAttachmentMenu();
+        const conversation = conversations.find((item) => item.id === activeConversationId);
+        exportConversationPdf(conversation?.messages || []);
+      });
+      byId("export-chat-option").addEventListener("click", downloadConversationText);
+      byId("clear-chat-option").addEventListener("click", clearCurrentConversation);
       byId("source-file").addEventListener("change", (event) => uploadSource(event.target.files?.[0]));
       document.addEventListener("click", (event) => {
         if (
@@ -1509,18 +2260,26 @@
           && !byId("attachment-menu").contains(event.target)
           && !byId("source-plus").contains(event.target)
         ) {
-          byId("attachment-menu").classList.add("hidden");
-          byId("source-plus").setAttribute("aria-expanded", "false");
+          closeAttachmentMenu();
         }
       });
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
-          byId("attachment-menu").classList.add("hidden");
-          byId("source-plus").setAttribute("aria-expanded", "false");
+          closeAttachmentMenu();
         }
       });
       byId("draft-close").addEventListener("click", () => draftModal.close());
       draftModal.addEventListener("click", (event) => { if (event.target === draftModal) draftModal.close(); });
+      byId("conversation-form").addEventListener("submit", completeConversationDialog);
+      byId("conversation-modal-close").addEventListener("click", () => conversationModal.close());
+      byId("conversation-modal-cancel").addEventListener("click", () => conversationModal.close());
+      conversationModal.addEventListener("click", (event) => {
+        if (event.target === conversationModal) conversationModal.close();
+      });
+      conversationModal.addEventListener("close", () => {
+        conversationDialogAction = null;
+        conversationDialogId = null;
+      });
       byId("draft-type").addEventListener("change", () => {
         if (draftModal.open) loadDraft();
       });
@@ -1550,11 +2309,28 @@
         link.remove();
       });
 
+      window.addEventListener("resize", resizeComposer);
+      document.addEventListener("keydown", (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+          event.preventDefault();
+          startNewChat();
+        }
+      });
+
       try {
         const savedUser = JSON.parse(localStorage.getItem("legal-assistant-user") || "null");
         if (savedUser && savedUser.id && savedUser.full_name) currentUser = savedUser;
       } catch {
-        localStorage.removeItem("legal-assistant-user");
+        showNotice(authError, "সংরক্ষিত সেশন পড়া যায়নি; অনুগ্রহ করে আবার লগইন করুন।", "error");
+        try { localStorage.removeItem("legal-assistant-user"); } catch { /* Storage may be disabled. */ }
+      }
+      try {
+        if (localStorage.getItem("legal-assistant-theme") === "light") {
+          appView.classList.add("light-mode");
+          byId("theme-toggle").setAttribute("aria-pressed", "true");
+        }
+      } catch (error) {
+        showGlobalMessage(`থিম সেটিং পড়া যায়নি: ${error.message}`, true);
       }
       renderApp();
     </script>
