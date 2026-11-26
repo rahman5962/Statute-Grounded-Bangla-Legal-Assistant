@@ -29,6 +29,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 from auth import authenticate_user, register_user, validate_user_input
 from case_advisor import build_case_action_plan, summarize_source
+from document_export import build_case_plan_docx
 from database import (
     add_bookmark,
     delete_bookmark,
@@ -148,6 +149,12 @@ class CaseAnalysisRequest(BaseModel):
     top_k: int = Field(default=3, ge=1, le=6)
     user_id: int = Field(ge=1)
     source_id: int | None = Field(default=None, ge=1)
+
+
+class CasePlanExportRequest(BaseModel):
+    query: Annotated[str, Field(min_length=1, max_length=3000)]
+    user_id: int = Field(ge=1)
+    analysis: dict[str, Any]
 
 
 class DraftRequest(BaseModel):
@@ -802,6 +809,24 @@ def api_analyze_case(request: CaseAnalysisRequest) -> dict[str, object]:
         result["source"] = _source_metadata(source)
     _audit_case_analysis(request.user_id, request.query, analysis)
     return result
+
+
+@app.post("/api/export-case-plan")
+def api_export_case_plan(request: CasePlanExportRequest) -> StreamingResponse:
+    _require_user(request.user_id)
+    try:
+        content = build_case_plan_docx(request.query, request.analysis)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
+        headers={
+            "Content-Disposition": 'attachment; filename="ainsathi-case-plan.docx"'
+        },
+    )
 
 
 @app.post("/api/generate-draft")
