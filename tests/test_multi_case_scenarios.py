@@ -112,7 +112,13 @@ def cleanup_test_users(user_ids: list[int]) -> None:
     connection = sqlite3.connect(main.BACKEND_DIR / "data" / "legal_assistant.db")
     try:
         placeholders = ",".join("?" for _ in user_ids)
-        for table in ("query_logs", "bookmarks", "uploaded_sources"):
+        for table in (
+            "query_logs",
+            "bookmarks",
+            "uploaded_sources",
+            "uploaded_documents",
+            "user_sessions",
+        ):
             connection.execute(
                 f"DELETE FROM {table} WHERE user_id IN ({placeholders})",
                 user_ids,

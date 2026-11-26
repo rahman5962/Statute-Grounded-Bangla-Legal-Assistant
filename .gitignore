@@ -3,6 +3,7 @@ __pycache__/
 backend/__pycache__/
 backend/scripts/__pycache__/
 backend/data/chroma_db/
+backend/data/user_documents/
 backend/data/legal_assistant.db
 .env
 

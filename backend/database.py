@@ -6,6 +6,7 @@ Module: SQLite Relational Database Engine
 
 import json
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -104,6 +105,38 @@ def init_db():
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_uploaded_sources_user_created
         ON uploaded_sources (user_id, created_at DESC, id DESC)
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS uploaded_documents (
+            document_id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            conversation_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            content_sha256 TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL CHECK (size_bytes > 0),
+            page_count INTEGER NOT NULL CHECK (page_count > 0),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE (user_id, conversation_id, content_sha256)
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_uploaded_documents_conversation
+        ON uploaded_documents (user_id, conversation_id, created_at DESC)
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            token_hash TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at REAL NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_user_sessions_user
+        ON user_sessions (user_id, expires_at)
     """)
 
     conn.commit()
@@ -313,6 +346,200 @@ def delete_uploaded_source(source_id: int, user_id: int) -> bool:
         )
         conn.commit()
         return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def save_uploaded_document(
+    document_id: str,
+    user_id: int,
+    conversation_id: str,
+    filename: str,
+    content_sha256: str,
+    size_bytes: int,
+    page_count: int,
+) -> dict[str, Any]:
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO uploaded_documents (
+                document_id, user_id, conversation_id, filename,
+                content_sha256, size_bytes, page_count
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                document_id,
+                user_id,
+                conversation_id,
+                filename,
+                content_sha256,
+                size_bytes,
+                page_count,
+            ),
+        )
+        conn.commit()
+        document = get_uploaded_document(document_id, user_id, conversation_id)
+        if document is None:
+            raise RuntimeError("Uploaded document was not persisted.")
+        return document
+    finally:
+        conn.close()
+
+
+def get_uploaded_document(
+    document_id: str,
+    user_id: int,
+    conversation_id: str,
+) -> dict[str, Any] | None:
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT document_id, user_id, conversation_id, filename,
+                   content_sha256, size_bytes, page_count, created_at
+            FROM uploaded_documents
+            WHERE document_id = ? AND user_id = ? AND conversation_id = ?
+            """,
+            (document_id, user_id, conversation_id),
+        ).fetchone()
+        return dict(row) if row is not None else None
+    finally:
+        conn.close()
+
+
+def get_uploaded_document_by_hash(
+    user_id: int,
+    conversation_id: str,
+    content_sha256: str,
+) -> dict[str, Any] | None:
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT document_id, user_id, conversation_id, filename,
+                   content_sha256, size_bytes, page_count, created_at
+            FROM uploaded_documents
+            WHERE user_id = ? AND conversation_id = ? AND content_sha256 = ?
+            """,
+            (user_id, conversation_id, content_sha256),
+        ).fetchone()
+        return dict(row) if row is not None else None
+    finally:
+        conn.close()
+
+
+def get_user_documents(
+    user_id: int,
+    conversation_id: str,
+) -> list[dict[str, Any]]:
+    conn = get_db_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT document_id, user_id, conversation_id, filename,
+                   size_bytes, page_count, created_at
+            FROM uploaded_documents
+            WHERE user_id = ? AND conversation_id = ?
+            ORDER BY created_at ASC, document_id ASC
+            """,
+            (user_id, conversation_id),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def delete_uploaded_document(
+    document_id: str,
+    user_id: int,
+    conversation_id: str,
+) -> bool:
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute(
+            """
+            DELETE FROM uploaded_documents
+            WHERE document_id = ? AND user_id = ? AND conversation_id = ?
+            """,
+            (document_id, user_id, conversation_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_uploaded_documents_for_conversation(
+    user_id: int,
+    conversation_id: str,
+) -> list[dict[str, Any]]:
+    conn = get_db_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT document_id, filename, size_bytes, page_count
+            FROM uploaded_documents
+            WHERE user_id = ? AND conversation_id = ?
+            """,
+            (user_id, conversation_id),
+        ).fetchall()
+        conn.execute(
+            """
+            DELETE FROM uploaded_documents
+            WHERE user_id = ? AND conversation_id = ?
+            """,
+            (user_id, conversation_id),
+        )
+        conn.commit()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def save_user_session(token_hash: str, user_id: int, expires_at: float) -> None:
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "DELETE FROM user_sessions WHERE user_id = ? AND expires_at <= ?",
+            (user_id, time.time()),
+        )
+        conn.execute(
+            """
+            INSERT INTO user_sessions (token_hash, user_id, expires_at)
+            VALUES (?, ?, ?)
+            """,
+            (token_hash, user_id, expires_at),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_session_user_id(token_hash: str) -> int | None:
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT user_id FROM user_sessions
+            WHERE token_hash = ? AND expires_at > ?
+            """,
+            (token_hash, time.time()),
+        ).fetchone()
+        return int(row["user_id"]) if row is not None else None
+    finally:
+        conn.close()
+
+
+def delete_user_session(token_hash: str) -> None:
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "DELETE FROM user_sessions WHERE token_hash = ?",
+            (token_hash,),
+        )
+        conn.commit()
     finally:
         conn.close()
 

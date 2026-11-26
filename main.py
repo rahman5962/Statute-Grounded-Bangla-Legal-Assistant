@@ -1,19 +1,23 @@
 """FastAPI application for the statute-grounded legal assistant."""
 
 import csv
+import hashlib
 import importlib.util
 import io
 import json
 import logging
 import os
 import re
+import secrets
 import sys
 import threading
+import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, AsyncIterator, Literal
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Cookie, FastAPI, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,18 +34,32 @@ sys.path.insert(0, str(BACKEND_DIR))
 from auth import authenticate_user, register_user, validate_user_input
 from case_advisor import build_case_action_plan, summarize_source
 from document_export import build_case_plan_docx
+from document_processing import (
+    DocumentProcessingError,
+    chunk_pdf_pages,
+    extract_pdf_pages,
+)
 from database import (
     add_bookmark,
     delete_bookmark,
+    delete_uploaded_document,
+    delete_uploaded_documents_for_conversation,
     delete_uploaded_source,
+    delete_user_session,
     get_audit_trail,
     get_db_connection,
+    get_session_user_id,
+    get_uploaded_document,
+    get_uploaded_document_by_hash,
     get_source_by_id,
+    get_user_documents,
     get_user_sources,
     get_user_bookmarks,
     init_db,
     log_audit_trail,
+    save_uploaded_document,
     save_uploaded_source,
+    save_user_session,
 )
 from domain_guard import (
     DOMAIN_LABELS,
@@ -227,12 +245,23 @@ ACTION_INTENT_MARKERS = (
 )
 
 _vector_collection = None
+_document_collection = None
+_vector_store_module = None
 _vector_collection_lock = threading.Lock()
+_vector_store_module_lock = threading.Lock()
 MAX_SOURCE_FILE_BYTES = 20 * 1024 * 1024
 MAX_SOURCE_PAGES = 100
 MAX_EXTRACTED_TEXT_CHARS = 250_000
 SOURCE_CHUNK_SIZE = 1200
 SOURCE_CHUNK_OVERLAP = 160
+MAX_DOCUMENT_FILE_BYTES = 20 * 1024 * 1024
+MAX_DOCUMENT_PAGES = 100
+MAX_DOCUMENT_UPLOADS = 5
+DOCUMENT_UPLOAD_DIR = BACKEND_DIR / "data" / "user_documents"
+DOCUMENT_RETRIEVAL_COUNT = 5
+MIN_DOCUMENT_SIMILARITY = 0.48
+DOCUMENT_SESSION_COOKIE = "ainsathi_session"
+DOCUMENT_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 @asynccontextmanager
@@ -295,6 +324,21 @@ class CasePlanExportRequest(BaseModel):
     analysis: dict[str, Any]
 
 
+class DocumentHistoryTurn(BaseModel):
+    query: Annotated[str, Field(min_length=1, max_length=3000)]
+
+
+class DocumentAskRequest(BaseModel):
+    query: Annotated[str, Field(min_length=1, max_length=3000)]
+    user_id: int = Field(ge=1)
+    conversation_id: Annotated[str, Field(min_length=8, max_length=128)]
+    document_ids: list[Annotated[str, Field(min_length=1, max_length=64)]] = Field(
+        default_factory=list,
+        max_length=MAX_DOCUMENT_UPLOADS,
+    )
+    history: list[DocumentHistoryTurn] = Field(default_factory=list, max_length=4)
+
+
 class DraftRequest(BaseModel):
     query: Annotated[str, Field(min_length=1, max_length=3000)]
     domain: Domain
@@ -318,11 +362,20 @@ class BookmarkRequest(BaseModel):
 
 
 def get_vector_collection():
-    """Load the Chroma collection only when the first search needs it."""
+    """Load the statute collection only when a search request needs it."""
     global _vector_collection
     if _vector_collection is None:
         with _vector_collection_lock:
             if _vector_collection is None:
+                _vector_collection = _get_vector_store_module().get_vector_collection()
+    return _vector_collection
+
+
+def _get_vector_store_module():
+    global _vector_store_module
+    if _vector_store_module is None:
+        with _vector_store_module_lock:
+            if _vector_store_module is None:
                 spec = importlib.util.spec_from_file_location(
                     "statute_vector_store", VECTOR_STORE_SCRIPT
                 )
@@ -333,8 +386,20 @@ def get_vector_collection():
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[spec.name] = module
                 spec.loader.exec_module(module)
-                _vector_collection = module.get_vector_collection()
-    return _vector_collection
+                _vector_store_module = module
+    return _vector_store_module
+
+
+def get_document_collection():
+    """Load the isolated uploaded-document collection when required."""
+    global _document_collection
+    if _document_collection is None:
+        with _vector_collection_lock:
+            if _document_collection is None:
+                _document_collection = (
+                    _get_vector_store_module().get_document_collection()
+                )
+    return _document_collection
 
 
 def _result_message(result: object, default: str) -> str:
@@ -403,6 +468,21 @@ def _require_user(user_id: int) -> str:
     if row is None:
         raise HTTPException(status_code=404, detail="ব্যবহারকারী পাওয়া যায়নি।")
     return str(row["role"] or "citizen")
+
+
+def _require_document_session(user_id: int, token: str | None) -> None:
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="ব্যক্তিগত PDF ব্যবহারের জন্য আবার লগইন করুন।",
+        )
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    session_user_id = get_session_user_id(token_hash)
+    if session_user_id != user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="লগইন সেশনটি অবৈধ বা মেয়াদোত্তীর্ণ। আবার লগইন করুন।",
+        )
 
 
 def _normalized_legal_status(value: object) -> str:
@@ -890,13 +970,47 @@ def api_register(request: RegisterRequest) -> dict[str, str]:
 
 
 @app.post("/api/login")
-def api_login(request: LoginRequest) -> dict[str, object]:
+def api_login(request: LoginRequest, response: Response) -> dict[str, object]:
     result = authenticate_user(request.email.strip(), request.password)
     user = _login_user(result)
     if user is None:
         message = _result_message(result, "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।")
         raise HTTPException(status_code=401, detail=message)
+    session_token = secrets.token_urlsafe(32)
+    save_user_session(
+        hashlib.sha256(session_token.encode("utf-8")).hexdigest(),
+        int(user["id"]),
+        time.time() + DOCUMENT_SESSION_TTL_SECONDS,
+    )
+    response.set_cookie(
+        DOCUMENT_SESSION_COOKIE,
+        session_token,
+        max_age=DOCUMENT_SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+        samesite="strict",
+        path="/api",
+    )
     return {"status": "success", "user": user}
+
+
+@app.post("/api/logout")
+def api_logout(
+    response: Response,
+    session_token: Annotated[
+        str | None, Cookie(alias=DOCUMENT_SESSION_COOKIE)
+    ] = None,
+) -> dict[str, str]:
+    if session_token:
+        delete_user_session(hashlib.sha256(session_token.encode("utf-8")).hexdigest())
+    response.delete_cookie(
+        DOCUMENT_SESSION_COOKIE,
+        httponly=True,
+        secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+        samesite="strict",
+        path="/api",
+    )
+    return {"status": "success", "message": "লগআউট সম্পন্ন হয়েছে।"}
 
 
 @app.post("/api/search")
@@ -925,6 +1039,423 @@ def api_search(request: SearchRequest) -> dict[str, object]:
     elif _requests_action_plan(request.query):
         result.update(build_case_action_plan(request.query, results))
     return result
+
+
+def _document_metadata(document: dict[str, Any]) -> dict[str, object]:
+    return {
+        key: document[key]
+        for key in (
+            "document_id",
+            "filename",
+            "size_bytes",
+            "page_count",
+            "created_at",
+        )
+    }
+
+
+def _document_path(user_id: int, document_id: str) -> Path:
+    return DOCUMENT_UPLOAD_DIR / str(user_id) / f"{document_id}.pdf"
+
+
+def _validate_conversation_id(conversation_id: str) -> None:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", conversation_id):
+        raise HTTPException(status_code=422, detail="কথোপকথনের ID সঠিক নয়।")
+
+
+@app.post("/api/documents/upload")
+async def api_upload_document(
+    file: Annotated[UploadFile, File()],
+    user_id: Annotated[int, Form(gt=0)],
+    conversation_id: Annotated[str, Form(min_length=8, max_length=128)],
+    session_token: Annotated[
+        str | None, Cookie(alias=DOCUMENT_SESSION_COOKIE)
+    ] = None,
+) -> dict[str, object]:
+    _require_document_session(user_id, session_token)
+    _require_user(user_id)
+    _validate_conversation_id(conversation_id)
+    filename = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if not filename or not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="শুধুমাত্র PDF ফাইল আপলোড করুন।")
+    if (file.content_type or "").lower() not in {
+        "application/pdf",
+        "application/x-pdf",
+        "application/octet-stream",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail="ফাইলের MIME type PDF নয়। বৈধ PDF ফাইল নির্বাচন করুন।",
+        )
+    documents = get_user_documents(user_id, conversation_id)
+    if len(documents) >= MAX_DOCUMENT_UPLOADS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"একটি কথোপকথনে সর্বোচ্চ {MAX_DOCUMENT_UPLOADS}টি PDF যোগ করা যায়।",
+        )
+
+    try:
+        content = await file.read(MAX_DOCUMENT_FILE_BYTES + 1)
+    finally:
+        await file.close()
+    if len(content) > MAX_DOCUMENT_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="PDF ফাইলটি ২০ MB-এর বেশি; ছোট ফাইল আপলোড করুন।",
+        )
+
+    try:
+        page_count, page_texts = extract_pdf_pages(
+            content,
+            max_pages=MAX_DOCUMENT_PAGES,
+        )
+    except DocumentProcessingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    content_sha256 = hashlib.sha256(content).hexdigest()
+    duplicate = get_uploaded_document_by_hash(
+        user_id,
+        conversation_id,
+        content_sha256,
+    )
+    if duplicate is not None:
+        return {
+            "status": "success",
+            "message": "এই PDF আগে থেকেই এই কথোপকথনে যুক্ত আছে।",
+            "duplicate": True,
+            "document": _document_metadata(duplicate),
+        }
+
+    document_id = str(uuid.uuid4())
+    chunks = chunk_pdf_pages(document_id, filename, page_texts)
+    if not chunks:
+        raise HTTPException(
+            status_code=400,
+            detail="PDF থেকে কোনো অনুসন্ধানযোগ্য লেখা তৈরি করা যায়নি।",
+        )
+
+    document_path = _document_path(user_id, document_id)
+    chunk_ids = [str(chunk["chunk_id"]) for chunk in chunks]
+    collection = None
+    try:
+        document_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(document_path.parent, 0o700)
+        descriptor = os.open(
+            document_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        with os.fdopen(descriptor, "wb") as stored_pdf:
+            stored_pdf.write(content)
+        collection = get_document_collection()
+        collection.upsert(
+            ids=chunk_ids,
+            documents=[str(chunk["text"]) for chunk in chunks],
+            metadatas=[
+                {
+                    "document_id": document_id,
+                    "user_id": user_id,
+                    "conversation_id": conversation_id,
+                    "filename": filename,
+                    "page_number": int(chunk["page_number"]),
+                    "section_title": str(chunk["section_title"]),
+                    "chunk_index": int(chunk["chunk_index"]),
+                }
+                for chunk in chunks
+            ],
+        )
+        document = save_uploaded_document(
+            document_id=document_id,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            filename=filename,
+            content_sha256=content_sha256,
+            size_bytes=len(content),
+            page_count=page_count,
+        )
+    except Exception as exc:
+        logger.exception("PDF document indexing failed for user %s", user_id)
+        try:
+            if collection is not None:
+                collection.delete(ids=chunk_ids)
+        except Exception:
+            logger.exception("Failed to clean up partial PDF index for user %s", user_id)
+        try:
+            document_path.unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Failed to remove partial PDF file for user %s", user_id)
+        try:
+            delete_uploaded_document(document_id, user_id, conversation_id)
+        except Exception:
+            logger.exception("Failed to remove partial PDF metadata for user %s", user_id)
+        raise HTTPException(
+            status_code=503,
+            detail="PDF-এর লেখা সংরক্ষণ ও অনুসন্ধান-সূচিতে যোগ করা যায়নি। পরে আবার চেষ্টা করুন।",
+        ) from exc
+
+    return {
+        "status": "success",
+        "message": "PDF পড়া হয়েছে এবং এই কথোপকথনের জন্য প্রশ্ন করার উপযোগী।",
+        "duplicate": False,
+        "document": _document_metadata(document),
+    }
+
+
+@app.get("/api/documents")
+def api_get_documents(
+    user_id: Annotated[int, Query(ge=1)],
+    conversation_id: Annotated[str, Query(min_length=8, max_length=128)],
+    session_token: Annotated[
+        str | None, Cookie(alias=DOCUMENT_SESSION_COOKIE)
+    ] = None,
+) -> list[dict[str, object]]:
+    _require_document_session(user_id, session_token)
+    _require_user(user_id)
+    _validate_conversation_id(conversation_id)
+    return [
+        _document_metadata(document)
+        for document in get_user_documents(user_id, conversation_id)
+    ]
+
+
+@app.delete("/api/documents/{document_id}")
+def api_delete_document(
+    document_id: Annotated[
+        str, Field(min_length=36, max_length=36, pattern=r"^[a-f0-9-]{36}$")
+    ],
+    user_id: Annotated[int, Query(ge=1)],
+    conversation_id: Annotated[str, Query(min_length=8, max_length=128)],
+    session_token: Annotated[
+        str | None, Cookie(alias=DOCUMENT_SESSION_COOKIE)
+    ] = None,
+) -> dict[str, str]:
+    _require_document_session(user_id, session_token)
+    _require_user(user_id)
+    _validate_conversation_id(conversation_id)
+    document = get_uploaded_document(document_id, user_id, conversation_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="এই কথোপকথনের PDF পাওয়া যায়নি।")
+    try:
+        get_document_collection().delete(
+            where={
+                "$and": [
+                    {"document_id": document_id},
+                    {"user_id": user_id},
+                    {"conversation_id": conversation_id},
+                ]
+            }
+        )
+        _document_path(user_id, document_id).unlink(missing_ok=True)
+    except Exception as exc:
+        logger.exception("PDF document deletion failed for user %s", user_id)
+        raise HTTPException(
+            status_code=503,
+            detail="PDF এবং এর অনুসন্ধান-তথ্য সম্পূর্ণভাবে মুছে ফেলা যায়নি।",
+        ) from exc
+    if not delete_uploaded_document(document_id, user_id, conversation_id):
+        raise HTTPException(
+            status_code=503,
+            detail="PDF-এর তথ্য ডেটাবেজ থেকে মুছে ফেলা যায়নি।",
+        )
+    return {"status": "success", "message": "PDF ও এর অনুসন্ধান-তথ্য মুছে ফেলা হয়েছে।"}
+
+
+@app.delete("/api/documents/conversations/{conversation_id}")
+def api_delete_conversation_documents(
+    conversation_id: Annotated[str, Field(min_length=8, max_length=128)],
+    user_id: Annotated[int, Query(ge=1)],
+    session_token: Annotated[
+        str | None, Cookie(alias=DOCUMENT_SESSION_COOKIE)
+    ] = None,
+) -> dict[str, object]:
+    _require_document_session(user_id, session_token)
+    _require_user(user_id)
+    _validate_conversation_id(conversation_id)
+    documents = get_user_documents(user_id, conversation_id)
+    if not documents:
+        return {
+            "status": "success",
+            "deleted_count": 0,
+            "message": "এই কথোপকথনে কোনো PDF ছিল না।",
+        }
+    try:
+        get_document_collection().delete(
+            where={
+                "$and": [
+                    {"user_id": user_id},
+                    {"conversation_id": conversation_id},
+                ]
+            }
+        )
+        for document in documents:
+            _document_path(user_id, str(document["document_id"])).unlink(
+                missing_ok=True
+            )
+    except Exception as exc:
+        logger.exception(
+            "PDF cleanup for conversation failed for user %s", user_id
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="কথোপকথনের PDF ও অনুসন্ধান-তথ্য সম্পূর্ণভাবে মুছে ফেলা যায়নি।",
+        ) from exc
+    deleted = delete_uploaded_documents_for_conversation(
+        user_id,
+        conversation_id,
+    )
+    return {
+        "status": "success",
+        "deleted_count": len(deleted),
+        "message": "কথোপকথনের PDF ও অনুসন্ধান-তথ্য মুছে ফেলা হয়েছে।",
+    }
+
+
+def _document_query_terms(text: str) -> set[str]:
+    stopwords = {
+        "the", "and", "for", "with", "what", "which", "where", "when",
+        "this", "that", "from", "about", "does", "into", "have", "এর",
+        "এবং", "করে", "কী", "কি", "কেন", "কিভাবে", "কীভাবে", "বলুন",
+        "ব্যাখ্যা", "করুন", "হলো", "হয়", "হয়", "আছে", "থেকে",
+    }
+    return {
+        token
+        for token in re.findall(r"[\u0980-\u09FF]+|[a-z0-9]+", text.casefold())
+        if len(token) > 2 and token not in stopwords
+    }
+
+
+def _document_search_query(
+    query: str,
+    history: list[DocumentHistoryTurn],
+) -> str:
+    follow_up_markers = (
+        "আগের", "উপরের", "ওটা", "এটা", "সেটা", "আরও বিস্তারিত",
+        "আরো বিস্তারিত", "previous", "above", "that", "it", "more detail",
+        "explain further",
+    )
+    if history and any(marker in query.casefold() for marker in follow_up_markers):
+        return f"{history[-1].query}\n{query}"
+    return query
+
+
+@app.post("/api/documents/ask")
+def api_ask_document(
+    request: DocumentAskRequest,
+    session_token: Annotated[
+        str | None, Cookie(alias=DOCUMENT_SESSION_COOKIE)
+    ] = None,
+) -> dict[str, object]:
+    _require_document_session(request.user_id, session_token)
+    _require_user(request.user_id)
+    _validate_conversation_id(request.conversation_id)
+    documents = get_user_documents(request.user_id, request.conversation_id)
+    if request.document_ids:
+        allowed_ids = {str(document["document_id"]) for document in documents}
+        if not set(request.document_ids).issubset(allowed_ids):
+            raise HTTPException(
+                status_code=404,
+                detail="নির্বাচিত PDF এই ব্যবহারকারী বা কথোপকথনের নয়।",
+            )
+        documents = [
+            document
+            for document in documents
+            if document["document_id"] in set(request.document_ids)
+        ]
+    if not documents:
+        raise HTTPException(
+            status_code=404,
+            detail="এই কথোপকথনে কোনো PDF যুক্ত নেই। আগে একটি PDF আপলোড করুন।",
+        )
+
+    where: dict[str, object] = {
+        "$and": [
+            {"user_id": request.user_id},
+            {"conversation_id": request.conversation_id},
+            {
+                "document_id": {
+                    "$in": [str(document["document_id"]) for document in documents]
+                }
+            },
+        ]
+    }
+    try:
+        collection = get_document_collection()
+        matching_chunks = collection.count(where=where)
+        if matching_chunks == 0:
+            retrieved: dict[str, Any] = {}
+        else:
+            retrieved = collection.query(
+                query_texts=[
+                    _document_search_query(request.query, request.history)[:3000]
+                ],
+                n_results=min(DOCUMENT_RETRIEVAL_COUNT, matching_chunks),
+                where=where,
+                include=["documents", "metadatas", "distances"],
+            )
+    except Exception as exc:
+        logger.exception("Document retrieval failed for user %s", request.user_id)
+        raise HTTPException(
+            status_code=503,
+            detail="আপলোডকৃত PDF থেকে তথ্য খোঁজা যাচ্ছে না। পরে আবার চেষ্টা করুন।",
+        ) from exc
+
+    found_documents = retrieved.get("documents") or [[]]
+    found_metadatas = retrieved.get("metadatas") or [[]]
+    found_distances = retrieved.get("distances") or [[]]
+    query_terms = _document_query_terms(request.query)
+    citations: list[dict[str, object]] = []
+    seen_chunks: set[str] = set()
+    for text, metadata, distance in zip(
+        found_documents[0],
+        found_metadatas[0],
+        found_distances[0],
+    ):
+        metadata = metadata or {}
+        similarity = 1.0 - float(distance)
+        overlap_terms = query_terms & _document_query_terms(str(text or ""))
+        if (
+            similarity < MIN_DOCUMENT_SIMILARITY
+            and (not query_terms or len(overlap_terms) / len(query_terms) < 0.25)
+        ):
+            continue
+        unique_chunk = (
+            str(metadata.get("document_id")),
+            str(metadata.get("page_number")),
+            str(metadata.get("chunk_index")),
+        )
+        unique_key = "|".join(unique_chunk)
+        if unique_key in seen_chunks:
+            continue
+        seen_chunks.add(unique_key)
+        citations.append(
+            {
+                "document_id": str(metadata.get("document_id") or ""),
+                "filename": str(metadata.get("filename") or "আপলোডকৃত PDF"),
+                "page_number": int(metadata.get("page_number") or 1),
+                "section_title": str(metadata.get("section_title") or ""),
+                "excerpt": str(text or "")[:1200],
+                "similarity": round(max(0.0, min(1.0, similarity)), 3),
+            }
+        )
+
+    if not citations:
+        return {
+            "status": "needs_verification",
+            "message": (
+                "আপলোডকৃত PDF-এ এই প্রশ্নের উত্তর খুঁজে পাওয়া যায়নি। PDF-এর "
+                "প্রাসঙ্গিক অংশ দিন বা নথিতে থাকা তথ্য সম্পর্কে প্রশ্ন করুন।"
+            ),
+            "document_citations": [],
+        }
+
+    return {
+        "status": "success",
+        "message": (
+            "আপলোডকৃত PDF-এ প্রশ্নটির সঙ্গে সম্পর্কিত অংশ পাওয়া গেছে। নিচের "
+            "উদ্ধৃতিগুলোই নথিভিত্তিক উত্তর; নথিতে নেই এমন তথ্য যোগ করা হয়নি।"
+        ),
+        "document_citations": citations,
+    }
 
 
 @app.post("/api/sources/upload", response_model=None)

@@ -11,6 +11,7 @@ Module: ChromaDB Vector Indexing & Semantic Retrieval (FR-02 & FR-03)
 """
 
 import json
+import threading
 from pathlib import Path
 import chromadb
 from chromadb.utils import embedding_functions
@@ -25,26 +26,53 @@ NEW_DOMAINS_FILE = PROCESSED_DIR / "new_domains_chunks.json"
 CHROMA_DB_DIR = PROJECT_ROOT / "backend" / "data" / "chroma_db"
 
 COLLECTION_NAME = "bd_legal_multi_domain_2026"
+DOCUMENT_COLLECTION_NAME = "uploaded_pdf_documents"
 EMBEDDING_MODEL_NAME = (
     "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
+_client = None
+_embedding_function = None
+_initialization_lock = threading.Lock()
 
+
+def _get_client():
+    global _client
+    if _client is None:
+        with _initialization_lock:
+            if _client is None:
+                CHROMA_DB_DIR.mkdir(parents=True, exist_ok=True)
+                _client = chromadb.PersistentClient(path=str(CHROMA_DB_DIR))
+    return _client
+
+
+def _get_embedding_function():
+    global _embedding_function
+    if _embedding_function is None:
+        with _initialization_lock:
+            if _embedding_function is None:
+                _embedding_function = (
+                    embedding_functions.SentenceTransformerEmbeddingFunction(
+                        model_name=EMBEDDING_MODEL_NAME
+                    )
+                )
+    return _embedding_function
 
 def get_vector_collection():
     """ChromaDB ক্লায়েন্ট এবং মাল্টিলিঙ্গুয়াল বাংলা এম্বেডিং ফাংশন ইনিশিয়ালাইজ করে।"""
-    CHROMA_DB_DIR.mkdir(parents=True, exist_ok=True)
-    client = chromadb.PersistentClient(path=str(CHROMA_DB_DIR))
-
-    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name=EMBEDDING_MODEL_NAME
-    )
-
-    collection = client.get_or_create_collection(
+    return _get_client().get_or_create_collection(
         name=COLLECTION_NAME,
-        embedding_function=embedding_fn,
+        embedding_function=_get_embedding_function(),
         metadata={"hnsw:space": "cosine"},
     )
-    return collection
+
+
+def get_document_collection():
+    """Return a separate, privacy-filtered collection for uploaded PDF chunks."""
+    return _get_client().get_or_create_collection(
+        name=DOCUMENT_COLLECTION_NAME,
+        embedding_function=_get_embedding_function(),
+        metadata={"hnsw:space": "cosine"},
+    )
 
 
 def load_all_chunks():

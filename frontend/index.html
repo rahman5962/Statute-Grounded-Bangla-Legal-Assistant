@@ -163,6 +163,19 @@
       .chat-mode #view-search { height: 100%; margin: 0; }
       .chat-mode #assistant-workspace { display: block; height: 100%; }
       .chat-mode #workspace-side-panel { display: none; }
+      .chat-mode #assistant-workspace.workspace-open #workspace-side-panel {
+        display: block;
+        position: fixed;
+        z-index: 30;
+        left: 272px;
+        top: 70px;
+        bottom: 130px;
+        width: min(320px, calc(100vw - 288px));
+        max-height: none;
+        border-radius: 0 1rem 1rem 0;
+        background: var(--chat-panel, #17181d);
+        box-shadow: 12px 0 36px rgba(0,0,0,.32);
+      }
       .chat-mode .chat-card {
         position: relative;
         height: 100%;
@@ -324,6 +337,15 @@
         .chat-mode > div > header { padding-left: 3.25rem; }
         .chat-mode #search-form { left: 0; }
         .chat-mode #chat-messages { padding-left: 1rem; padding-right: 1rem; }
+        .chat-mode #assistant-workspace.workspace-open #workspace-side-panel {
+          left: 8px;
+          right: 8px;
+          top: 66px;
+          bottom: 142px;
+          width: auto;
+          max-width: 360px;
+          border-radius: 1rem;
+        }
       }
       @media (max-width: 600px) {
         .chat-mode #chat-messages { padding-bottom: 12rem; }
@@ -337,6 +359,7 @@
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
       }
+      .document-dropzone.drag-active { border-color: rgba(167, 139, 250, .8); background: rgba(167, 139, 250, .12); }
     </style>
   </head>
   <body class="min-h-screen font-sans text-slate-100 antialiased">
@@ -520,12 +543,15 @@
               <p class="text-xs text-slate-500">স্বাভাবিকভাবে লিখুন বা বাংলায় কথা বলুন</p>
             </div>
             <div id="assistant-workspace" class="workspace-grid">
-              <aside id="workspace-side-panel" class="workspace-side-panel glass min-w-0 rounded-3xl p-3 sm:p-4" aria-label="সাধারণ প্রশ্ন ও PDF উৎস">
-                <div class="workspace-side-tabs mb-4 grid grid-cols-2 gap-1 rounded-xl border border-white/[.07] p-1" role="tablist" aria-label="সহায়ক প্যানেল">
-                  <button id="faq-tab" class="rounded-lg bg-white/[.08] px-2 py-2 text-xs font-semibold text-slate-100 transition" type="button" role="tab" aria-selected="true" aria-controls="faq-section">সাধারণ প্রশ্ন</button>
-                  <button id="sources-tab" class="rounded-lg px-2 py-2 text-xs font-semibold text-slate-400 transition hover:bg-white/[.04] hover:text-white" type="button" role="tab" aria-selected="false" aria-controls="source-panel">PDF উৎস</button>
+              <aside id="workspace-side-panel" class="workspace-side-panel glass relative min-w-0 rounded-3xl p-3 sm:p-4" aria-label="সাধারণ প্রশ্ন, আইনি উৎস ও PDF নথি">
+                <button id="workspace-close" class="absolute right-4 top-4 z-10 rounded-lg px-2 py-1 text-slate-400 transition hover:bg-white/10 hover:text-white" type="button" aria-label="সহায়ক প্যানেল বন্ধ করুন">×</button>
+                <div class="workspace-side-tabs mb-4 grid grid-cols-3 gap-1 rounded-xl border border-white/[.07] p-1 pr-9" role="tablist" aria-label="সহায়ক প্যানেল">
+                  <button id="faq-tab" class="rounded-lg bg-white/[.08] px-1.5 py-2 text-xs font-semibold text-slate-100 transition" type="button" role="tab" aria-selected="true" aria-controls="faq-section">FAQ</button>
+                  <button id="sources-tab" class="rounded-lg px-1.5 py-2 text-xs font-semibold text-slate-400 transition hover:bg-white/[.04] hover:text-white" type="button" role="tab" aria-selected="false" aria-controls="source-panel">আইনি PDF</button>
+                  <button id="documents-tab" class="rounded-lg px-1.5 py-2 text-xs font-semibold text-slate-400 transition hover:bg-white/[.04] hover:text-white" type="button" role="tab" aria-selected="false" aria-controls="document-panel">আমার PDF</button>
                 </div>
                 <input id="source-file" class="sr-only" type="file" accept="application/pdf,.pdf" aria-label="আইনি PDF নির্বাচন করুন">
+                <input id="document-file" class="sr-only" type="file" accept="application/pdf,.pdf" multiple aria-label="নথি-ভিত্তিক প্রশ্নের জন্য PDF নির্বাচন করুন">
                 <section id="faq-section" class="min-w-0" role="tabpanel" aria-labelledby="faq-tab">
                   <div class="mb-4 min-w-0 break-words whitespace-normal">
                     <p class="text-xs font-semibold uppercase tracking-[.16em] text-mint">দ্রুত শুরু করুন</p>
@@ -556,6 +582,19 @@
                   <div id="source-message" class="mb-3 hidden min-w-0 break-words whitespace-normal overflow-hidden rounded-xl border px-3 py-2.5 text-xs" role="status" aria-live="polite"></div>
                   <div id="source-list" class="grid min-w-0 gap-3"></div>
                 </section>
+                <section id="document-panel" class="hidden min-w-0" role="tabpanel" aria-labelledby="documents-tab">
+                  <div class="mb-3 min-w-0 break-words whitespace-normal">
+                    <p class="text-xs font-semibold uppercase tracking-[.16em] text-violet-200">PDF-ভিত্তিক প্রশ্নোত্তর</p>
+                    <h3 class="mt-1 text-lg font-semibold">এই কথোপকথনের নথি</h3>
+                    <p class="mt-1 text-xs leading-5 text-slate-400">প্রজেক্ট রিপোর্ট, গবেষণা, নির্দেশনা বা অন্য PDF যোগ করুন। উত্তর শুধু এই PDF-গুলোর পাওয়া অংশ ও পৃষ্ঠা-সূত্রের ভিত্তিতে হবে।</p>
+                  </div>
+                  <div id="document-dropzone" class="document-dropzone mb-3 cursor-pointer rounded-2xl border border-dashed border-violet-300/25 bg-violet-300/[.025] p-4 text-center transition hover:border-violet-300/50" role="button" tabindex="0" aria-label="PDF এখানে ছেড়ে দিন অথবা বেছে নিন">
+                    <p class="text-sm font-semibold text-violet-100">PDF এখানে টেনে আনুন</p>
+                    <p class="mt-1 text-xs text-slate-500">অথবা ফাইল বেছে নিন · একসঙ্গে সর্বোচ্চ ৫টি · প্রতিটি ২০ MB পর্যন্ত</p>
+                  </div>
+                  <div id="document-upload-status" class="mb-3 grid gap-2" aria-live="polite"></div>
+                  <div id="document-list" class="grid min-w-0 gap-3"></div>
+                </section>
               </aside>
               <div id="chat-card" class="chat-card glass overflow-hidden rounded-3xl p-4 shadow-glow sm:p-6">
               <div class="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] pb-4">
@@ -563,7 +602,7 @@
                   <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-mint/10 text-xl text-mint" aria-hidden="true">⚖</span>
                   <div class="min-w-0 break-words whitespace-normal">
                     <p class="font-semibold text-white">আইনসাথী AI</p>
-                    <p class="text-xs leading-5 text-slate-400">নির্বাচিত আইনের ভিত্তিতে সহায়ক উত্তর</p>
+                    <p class="text-xs leading-5 text-slate-400">নির্বাচিত আইন বা যুক্ত PDF-এর সূত্রভিত্তিক উত্তর</p>
                   </div>
                 </div>
                 <button id="faq-toggle" class="shrink-0 rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-mint/30 hover:text-mint" type="button" aria-expanded="true" aria-controls="faq-section">FAQ লুকান</button>
@@ -585,7 +624,7 @@
                 <div id="empty-chat" class="empty-chat">
                   <span class="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[.04] text-xl text-slate-200" aria-hidden="true">⚖</span>
                   <h2 class="mt-5 text-2xl font-semibold text-slate-100 sm:text-3xl">আজ কী জানতে চান?</h2>
-                  <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">শ্রম, ভোক্তা অধিকার ও সাইবার আইন থেকে যাচাইকৃত সূত্রসহ উত্তর খুঁজুন।</p>
+                  <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">শ্রম, ভোক্তা অধিকার ও সাইবার আইনের সূত্র খুঁজুন, অথবা PDF যোগ করে তার ভেতরের তথ্য সম্পর্কে প্রশ্ন করুন।</p>
                   <div class="mt-6 grid gap-2 text-left sm:grid-cols-2">
                     <button class="prompt-card faq-card rounded-xl border border-white/[.09] bg-white/[.025] p-3 text-sm text-slate-300 transition hover:bg-white/[.06]" type="button" data-domain="labour_law" data-faq-query="শ্রম আইন অনুযায়ী অতিরিক্ত কাজের ওভারটাইম ভাতা কীভাবে হিসাব হবে?">ওভারটাইম ভাতা কীভাবে হিসাব হয়?<span class="mt-1 block text-xs text-slate-500">শ্রম আইন · ধারা খুঁজুন</span></button>
                     <button class="prompt-card faq-card rounded-xl border border-white/[.09] bg-white/[.025] p-3 text-sm text-slate-300 transition hover:bg-white/[.06]" type="button" data-domain="consumer_rights" data-faq-query="মেয়াদোত্তীর্ণ পণ্য বিক্রি করলে কী প্রতিকার পাওয়া যায়?">মেয়াদোত্তীর্ণ পণ্য বিক্রির প্রতিকার কী?<span class="mt-1 block text-xs text-slate-500">ভোক্তা অধিকার · করণীয়</span></button>
@@ -600,8 +639,9 @@
                   <div class="relative shrink-0">
                     <button id="source-plus" class="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-2xl leading-none text-slate-200 transition hover:border-violet-300/30 hover:bg-violet-300/10 hover:text-violet-100 disabled:opacity-50" type="button" aria-label="PDF উৎস যোগ করুন" aria-expanded="false" aria-controls="attachment-menu" title="উৎস যোগ করুন">+</button>
                     <div id="attachment-menu" class="absolute bottom-14 left-0 z-20 hidden w-56 rounded-xl border border-white/10 bg-slate-900 p-2 shadow-2xl">
-                      <button id="upload-pdf-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span class="text-violet-200" aria-hidden="true">⇧</span> PDF উৎস যোগ করুন</button>
-                      <p class="px-3 pb-1 text-[10px] leading-4 text-slate-500">শুধু ৩টি সমর্থিত আইনের PDF</p>
+                      <button id="upload-document-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span class="text-violet-200" aria-hidden="true">⇧</span> PDF দিয়ে প্রশ্ন করুন</button>
+                      <button id="upload-pdf-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span class="text-emerald-200" aria-hidden="true">⚖</span> আইনি PDF উৎস যোগ করুন</button>
+                      <p class="px-3 pb-1 text-[10px] leading-4 text-slate-500">সাধারণ PDF ও ৩টি আইনের উৎস আলাদা রাখা হয়</p>
                       <button id="attach-image-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span aria-hidden="true">▧</span> ছবি সংযুক্ত করুন</button>
                       <button id="add-pdf-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span aria-hidden="true">▤</span> PDF তৈরি করুন</button>
                       <button id="export-chat-option" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[.07]" type="button"><span aria-hidden="true">↓</span> কথোপকথন রপ্তানি</button>
@@ -750,6 +790,7 @@
           ...(options.headers || {})
         };
         const response = await fetch(`${API}${path}`, {
+          credentials: "same-origin",
           ...options,
           headers
         });
@@ -824,10 +865,14 @@
         byId("audit-csv").href = `${API}/audit-logs/csv?user_id=${encodeURIComponent(currentUser.id)}`;
         loadBookmarkCount();
         loadSources();
+        loadDocuments();
       }
 
       function logout() {
         stopVoiceInput();
+        apiRequest("/logout", { method: "POST" }).catch((error) => {
+          showGlobalMessage(error.message || "সেশন বন্ধ করা যায়নি।", true);
+        });
         currentUser = null;
         try { localStorage.removeItem("legal-assistant-user"); } catch { /* Storage may be disabled. */ }
         clearAuthNotice();
@@ -1015,6 +1060,7 @@
         activeConversationId = id;
         saveConversationState();
         renderActiveConversation();
+        loadDocuments();
         closeMobileSidebar();
       }
 
@@ -1047,7 +1093,7 @@
         if (!deleting) byId("conversation-name").focus();
       }
 
-      function completeConversationDialog(event) {
+      async function completeConversationDialog(event) {
         event.preventDefault();
         const conversation = conversations.find((item) => item.id === conversationDialogId);
         if (!conversation || !conversationDialogAction) {
@@ -1063,12 +1109,29 @@
           }
           conversation.title = title.slice(0, 100);
         } else {
+          if (currentUser && Array.isArray(conversation.documentIds) && conversation.documentIds.length) {
+            const confirmButton = byId("conversation-modal-confirm");
+            confirmButton.disabled = true;
+            try {
+              const params = new URLSearchParams({ user_id: String(currentUser.id) });
+              await apiRequest(
+                `/documents/conversations/${encodeURIComponent(conversation.id)}?${params}`,
+                { method: "DELETE" }
+              );
+            } catch (error) {
+              showGlobalMessage(error.message || "কথোপকথনের PDF মুছে ফেলা যায়নি।", true);
+              return;
+            } finally {
+              confirmButton.disabled = false;
+            }
+          }
           conversations = conversations.filter((item) => item.id !== conversation.id);
           if (activeConversationId === conversation.id) activeConversationId = conversations[0]?.id || null;
         }
         conversationModal.close();
         saveConversationState();
         renderActiveConversation();
+        loadDocuments();
       }
 
       function beginConversationTurn(query) {
@@ -1095,6 +1158,26 @@
         return { conversation, message };
       }
 
+      function ensureActiveConversation() {
+        let conversation = conversations.find((item) => item.id === activeConversationId);
+        if (!conversation) {
+          conversation = {
+            id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            title: "PDF নথি থেকে প্রশ্ন",
+            updatedAt: Date.now(),
+            domain: selectedDomain,
+            messages: [],
+            documentIds: []
+          };
+          conversations.unshift(conversation);
+          activeConversationId = conversation.id;
+          saveConversationState();
+          renderActiveConversation();
+        }
+        if (!Array.isArray(conversation.documentIds)) conversation.documentIds = [];
+        return conversation;
+      }
+
       function startNewChat() {
         if (searchController) searchController.abort();
         activeConversationId = null;
@@ -1103,6 +1186,7 @@
         searchQuery.value = "";
         resetComposerHeight();
         renderActiveConversation();
+        renderDocuments([]);
         setSearchMessage("");
         closeMobileSidebar();
         searchQuery.focus();
@@ -1361,6 +1445,15 @@
       function assistantResponseText(result) {
         const parts = [];
         if (result.message) parts.push(result.message);
+        if (Array.isArray(result.document_citations)) {
+          result.document_citations.forEach((item) => {
+            parts.push(
+              `${item.filename || "PDF"} · পৃষ্ঠা ${item.page_number || "—"}`
+              + `${item.section_title ? ` · ${item.section_title}` : ""}\n`
+              + (item.excerpt || "")
+            );
+          });
+        }
         if (Array.isArray(result.step_by_step_plan)) {
           result.step_by_step_plan.forEach((step, index) => {
             parts.push(`ধাপ ${step.step_number || index + 1}: ${step.title || "পরবর্তী পদক্ষেপ"}`);
@@ -1391,6 +1484,28 @@
         return parts.filter(Boolean).join("\n\n") || "উত্তরের বিষয়বস্তু পাওয়া যায়নি।";
       }
 
+      function renderDocumentAnswer(container, result) {
+        container.append(
+          makeText("p", "break-words whitespace-normal text-sm leading-7 text-slate-200", result.message || "PDF থেকে প্রাসঙ্গিক অংশ পাওয়া গেছে.")
+        );
+        if (!Array.isArray(result.document_citations) || !result.document_citations.length) return;
+        const section = document.createElement("section");
+        section.className = "mt-3 grid min-w-0 gap-2";
+        section.append(makeText("h4", "text-xs font-semibold text-violet-200", "PDF-এর প্রাসঙ্গিক অংশ ও পৃষ্ঠা"));
+        result.document_citations.forEach((citation) => {
+          const card = document.createElement("article");
+          card.className = "min-w-0 break-words whitespace-normal overflow-hidden rounded-xl border border-violet-300/15 bg-violet-300/[.035] p-3";
+          const page = citation.page_number || "—";
+          const label = `${citation.filename || "PDF"} · পৃষ্ঠা ${page}${citation.section_title ? ` · ${citation.section_title}` : ""}`;
+          card.append(
+            makeText("p", "mb-1 text-xs font-semibold text-violet-100", label),
+            makeText("p", "break-words whitespace-normal text-sm leading-6 text-slate-300", citation.excerpt || "")
+          );
+          section.append(card);
+        });
+        container.append(section);
+      }
+
       function exportConversationPdf(messages) {
         if (!messages.length) {
           showGlobalMessage("PDF তৈরি করার আগে একটি কথোপকথন করুন।", true);
@@ -1414,9 +1529,11 @@
             .map((item) => `<li>${escapeHtml(item)}</li>`).join("");
           const sources = (Array.isArray(result.source_summary) ? result.source_summary : [])
             .map((item) => `<section class="statute"><h3>${escapeHtml(item.citation || `পৃষ্ঠা ${item.page_number || "—"}`)}</h3><p>${escapeHtml(item.excerpt || "")}</p></section>`).join("");
+          const documentCitations = (Array.isArray(result.document_citations) ? result.document_citations : [])
+            .map((item) => `<section class="statute"><h3>${escapeHtml(item.filename || "PDF")} · পৃষ্ঠা ${escapeHtml(item.page_number || "—")}</h3><p>${escapeHtml(item.excerpt || "")}</p></section>`).join("");
           const statutes = (Array.isArray(result.results) ? result.results : [])
             .map((item) => `<section class="statute"><h3>ধারা ${escapeHtml(item.section_number || "—")}: ${escapeHtml(item.section_title || "আইনি বিধান")}</h3><p>${escapeHtml(item.content || "")}</p><small>${escapeHtml(item.act_name || item.domain_bn || "")} · ${escapeHtml(item.legal_status || "")}</small></section>`).join("");
-          return `<article class="turn"><h2>আপনি</h2><p class="question">${escapeHtml(message.query)}</p><h2>আইনসাথী</h2><p>${escapeHtml(result.message || "")}</p>${sources ? `<h3>আপলোডকৃত উৎস</h3>${sources}` : ""}${steps ? `<h3>ধাপে ধাপে করণীয়</h3><ol>${steps}</ol>` : ""}${documents ? `<h3>প্রয়োজনীয় কাগজপত্র</h3><ul>${documents}</ul>` : ""}${citations ? `<h3>যাচাইকৃত আইনি সূত্র</h3><table><thead><tr><th>ধারা</th><th>শিরোনাম</th><th>বিধান</th></tr></thead><tbody>${citations}</tbody></table>` : ""}${statutes}${result.disclaimer ? `<p class="notice">${escapeHtml(result.disclaimer)}</p>` : ""}</article>`;
+          return `<article class="turn"><h2>আপনি</h2><p class="question">${escapeHtml(message.query)}</p><h2>আইনসাথী</h2><p>${escapeHtml(result.message || "")}</p>${documentCitations ? `<h3>PDF থেকে সূত্র</h3>${documentCitations}` : ""}${sources ? `<h3>আপলোডকৃত উৎস</h3>${sources}` : ""}${steps ? `<h3>ধাপে ধাপে করণীয়</h3><ol>${steps}</ol>` : ""}${documents ? `<h3>প্রয়োজনীয় কাগজপত্র</h3><ul>${documents}</ul>` : ""}${citations ? `<h3>যাচাইকৃত আইনি সূত্র</h3><table><thead><tr><th>ধারা</th><th>শিরোনাম</th><th>বিধান</th></tr></thead><tbody>${citations}</tbody></table>` : ""}${statutes}${result.disclaimer ? `<p class="notice">${escapeHtml(result.disclaimer)}</p>` : ""}</article>`;
         }).join("");
         printWindow.document.open();
         printWindow.document.write(`<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>আইনসাথী — কথোপকথন</title><style>
@@ -1499,6 +1616,8 @@
             makeText("p", "mt-1 break-words whitespace-normal text-sm leading-6 text-amber-50/90", result.message || "দুঃখিত, সংকলিত আইনি ধারায় এই প্রশ্নের বিষয়ে কোনো তথ্য পাওয়া যায়নি।")
           );
           bubble.append(notice);
+        } else if (result.status === "success" && Array.isArray(result.document_citations)) {
+          renderDocumentAnswer(bubble, result);
         } else if (result.status === "success" && Array.isArray(result.results) && result.results.length) {
           renderCasePlan(bubble, result, query);
           bubble.append(makeText("p", "mb-3 break-words whitespace-normal text-sm leading-6 text-slate-300", `${result.results.length}টি প্রাসঙ্গিক আইনি তথ্য পাওয়া গেছে।`));
@@ -1675,19 +1794,37 @@
         resetComposerHeight();
         selectedSearchQuery = query;
         const { conversation, message } = beginConversationTurn(query);
+        const documentIds = Array.isArray(conversation.documentIds)
+          ? conversation.documentIds
+          : [];
+        const priorQuestions = conversation.messages
+          .slice(0, -1)
+          .slice(-4)
+          .map((turn) => ({ query: turn.query }))
+          .filter((turn) => typeof turn.query === "string" && turn.query.trim());
+        const documentQuestion = documentIds.length > 0;
         const typingIndicator = createTypingIndicator();
         searchController = new AbortController();
         setSearchButtonRunning(true);
         setSearchMessage("");
         try {
-          const result = await apiRequest("/search", {
+          const result = await apiRequest(documentQuestion ? "/documents/ask" : "/search", {
             method: "POST",
             signal: searchController.signal,
             body: JSON.stringify({
               query,
-              domain,
-              top_k: Number(byId("top-k").value),
-              user_id: currentUser?.id
+              ...(documentQuestion
+                ? {
+                    user_id: currentUser.id,
+                    conversation_id: conversation.id,
+                    document_ids: documentIds,
+                    history: priorQuestions
+                  }
+                : {
+                    domain,
+                    top_k: Number(byId("top-k").value),
+                    user_id: currentUser?.id
+                  })
             })
           });
           typingIndicator.remove();
@@ -1803,6 +1940,197 @@
           sourceUploadInProgress = false;
           sourcePlus.disabled = false;
           byId("source-file").value = "";
+        }
+      }
+
+      function formatFileSize(size) {
+        return size < 1024 * 1024
+          ? `${Math.max(1, Math.round(size / 1024))} KB`
+          : `${(size / (1024 * 1024)).toFixed(1)} MB`;
+      }
+
+      function renderDocuments(documents) {
+        const list = byId("document-list");
+        list.replaceChildren();
+        if (!activeConversationId) {
+          list.append(makeText("p", "rounded-xl border border-white/[.06] bg-white/[.02] p-3 text-xs leading-5 text-slate-500", "PDF যোগ করতে আগে একটি কথোপকথন খুলুন বা নতুন প্রশ্ন শুরু করুন।"));
+          return;
+        }
+        if (!documents.length) {
+          list.append(makeText("p", "rounded-xl border border-white/[.06] bg-white/[.02] p-3 text-xs leading-5 text-slate-500", "এই কথোপকথনে এখনো কোনো PDF নেই। PDF যোগ করার পর প্রশ্ন করলে উত্তর শুধু নথির প্রাপ্ত অংশের ভিত্তিতে হবে।"));
+          return;
+        }
+        documents.forEach((documentInfo) => {
+          const card = document.createElement("article");
+          card.className = "min-w-0 break-words whitespace-normal rounded-xl border border-white/[.08] bg-white/[.025] p-3";
+          const heading = document.createElement("div");
+          heading.className = "flex min-w-0 items-start justify-between gap-2";
+          const details = document.createElement("div");
+          details.className = "min-w-0";
+          details.append(
+            makeText("p", "break-words text-xs font-semibold text-slate-100", documentInfo.filename || "PDF"),
+            makeText("p", "mt-1 text-[11px] text-slate-500", `${documentInfo.page_count || 0} পৃষ্ঠা · ${formatFileSize(Number(documentInfo.size_bytes) || 0)} · প্রশ্নের জন্য প্রস্তুত`)
+          );
+          const remove = makeText("button", "shrink-0 rounded-lg border border-white/10 px-2 py-1 text-[11px] text-slate-400 transition hover:border-rose-300/30 hover:text-rose-200", "মুছুন");
+          remove.type = "button";
+          remove.setAttribute("aria-label", `${documentInfo.filename || "PDF"} মুছুন`);
+          remove.addEventListener("click", () => deleteDocument(documentInfo, remove));
+          heading.append(details, remove);
+          card.append(heading);
+          list.append(card);
+        });
+      }
+
+      async function loadDocuments() {
+        const list = byId("document-list");
+        if (!currentUser || !activeConversationId) {
+          renderDocuments([]);
+          return;
+        }
+        const conversationId = activeConversationId;
+        try {
+          const query = new URLSearchParams({
+            user_id: String(currentUser.id),
+            conversation_id: conversationId
+          });
+          const documents = await apiRequest(`/documents?${query}`);
+          const conversation = conversations.find((item) => item.id === conversationId);
+          if (conversation) {
+            conversation.documentIds = documents.map((item) => item.document_id);
+            saveConversationState();
+          }
+          if (activeConversationId === conversationId) renderDocuments(documents);
+        } catch (error) {
+          if (activeConversationId === conversationId) {
+            list.replaceChildren(makeText("p", "rounded-xl border border-rose-300/20 bg-rose-300/[.05] p-3 text-xs text-rose-200", error.message || "PDF তালিকা লোড করা যায়নি।"));
+          }
+        }
+      }
+
+      function uploadDocumentWithProgress(file, userId, conversationId, statusRow) {
+        return new Promise((resolve, reject) => {
+          const request = new XMLHttpRequest();
+          const formData = new FormData();
+          formData.append("file", file, file.name);
+          formData.append("user_id", String(userId));
+          formData.append("conversation_id", conversationId);
+          request.open("POST", `${API}/documents/upload`);
+          request.withCredentials = true;
+          request.upload.addEventListener("progress", (event) => {
+            if (!event.lengthComputable) return;
+            const percent = Math.round((event.loaded / event.total) * 100);
+            statusRow.textContent = percent >= 100
+              ? `${file.name} · আপলোড সম্পন্ন; লেখা পড়া ও সূচি তৈরি হচ্ছে…`
+              : `${file.name} · আপলোড ${percent}%`;
+          });
+          request.addEventListener("load", () => {
+            let payload = {};
+            try {
+              payload = JSON.parse(request.responseText);
+            } catch {
+              reject(new Error("সার্ভার থেকে PDF-এর বৈধ উত্তর পাওয়া যায়নি।"));
+              return;
+            }
+            if (request.status < 200 || request.status >= 300) {
+              reject(new Error(payload.detail || payload.message || `আপলোড ব্যর্থ হয়েছে (${request.status})`));
+              return;
+            }
+            resolve(payload);
+          });
+          request.addEventListener("error", () => reject(new Error("নেটওয়ার্ক সমস্যায় PDF পাঠানো যায়নি।")));
+          request.addEventListener("abort", () => reject(new Error("PDF আপলোড বাতিল হয়েছে।")));
+          request.send(formData);
+        });
+      }
+
+      async function uploadDocuments(fileList) {
+        const files = Array.from(fileList || []);
+        if (!files.length) return;
+        if (!currentUser) {
+          setWorkspacePanel("documents");
+          showGlobalMessage("নিজের কথোপকথনে PDF যোগ করতে আগে লগইন করুন।", true);
+          return;
+        }
+        const conversation = ensureActiveConversation();
+        const conversationId = conversation.id;
+        setWorkspacePanel("documents");
+        const statusList = byId("document-upload-status");
+        statusList.replaceChildren();
+        if (files.length > 5) {
+          showGlobalMessage("একবারে সর্বোচ্চ ৫টি PDF নির্বাচন করুন।", true);
+          byId("document-file").value = "";
+          return;
+        }
+        for (const file of files) {
+          const row = makeText("p", "rounded-lg border border-white/[.07] bg-black/10 px-3 py-2 text-xs text-violet-100", `${file.name} · যাচাই করা হচ্ছে…`);
+          statusList.append(row);
+          if (!file.name.toLowerCase().endsWith(".pdf")) {
+            row.classList.add("text-rose-200");
+            row.textContent = `${file.name} · শুধু PDF ফাইল গ্রহণ করা হয়।`;
+            continue;
+          }
+          if (file.size === 0 || file.size > 20 * 1024 * 1024) {
+            row.classList.add("text-rose-200");
+            row.textContent = `${file.name} · ফাইল খালি অথবা ২০ MB-এর বেশি।`;
+            continue;
+          }
+          row.textContent = `${file.name} · ${formatFileSize(file.size)} · আপলোড ০%`;
+          try {
+            const response = await uploadDocumentWithProgress(
+              file,
+              currentUser.id,
+              conversationId,
+              row
+            );
+            const documentInfo = response.document;
+            if (documentInfo?.document_id) {
+              const targetConversation = conversations.find((item) => item.id === conversationId);
+              if (targetConversation) {
+                if (!Array.isArray(targetConversation.documentIds)) targetConversation.documentIds = [];
+                if (!targetConversation.documentIds.includes(documentInfo.document_id)) {
+                  targetConversation.documentIds.push(documentInfo.document_id);
+                }
+                targetConversation.updatedAt = Date.now();
+                saveConversationState();
+              }
+            }
+            row.classList.remove("text-violet-100");
+            row.classList.add("text-emerald-200");
+            row.textContent = `${file.name} · ${response.message || "PDF প্রস্তুত।"}`;
+          } catch (error) {
+            row.classList.remove("text-violet-100");
+            row.classList.add("text-rose-200");
+            row.textContent = `${file.name} · ${error.message || "PDF প্রক্রিয়া করা যায়নি।"}`;
+          }
+        }
+        if (activeConversationId === conversationId) await loadDocuments();
+        byId("document-file").value = "";
+      }
+
+      async function deleteDocument(documentInfo, button) {
+        if (!currentUser || !activeConversationId) return;
+        const conversationId = activeConversationId;
+        button.disabled = true;
+        try {
+          const query = new URLSearchParams({
+            user_id: String(currentUser.id),
+            conversation_id: conversationId
+          });
+          await apiRequest(`/documents/${encodeURIComponent(documentInfo.document_id)}?${query}`, {
+            method: "DELETE"
+          });
+          const conversation = conversations.find((item) => item.id === conversationId);
+          if (conversation && Array.isArray(conversation.documentIds)) {
+            conversation.documentIds = conversation.documentIds.filter(
+              (id) => id !== documentInfo.document_id
+            );
+            saveConversationState();
+          }
+          if (activeConversationId === conversationId) await loadDocuments();
+          showGlobalMessage("PDF ও এর অনুসন্ধান-তথ্য মুছে ফেলা হয়েছে।");
+        } catch (error) {
+          button.disabled = false;
+          showGlobalMessage(error.message || "PDF মুছে ফেলা যায়নি।", true);
         }
       }
 
@@ -2166,18 +2494,30 @@
 
       function setWorkspacePanel(panel) {
         const showFaq = panel === "faq";
+        const showSources = panel === "sources";
+        const showDocuments = panel === "documents";
+        byId("assistant-workspace").classList.add("workspace-open");
         byId("faq-section").classList.toggle("hidden", !showFaq);
-        byId("source-panel").classList.toggle("hidden", showFaq);
+        byId("source-panel").classList.toggle("hidden", !showSources);
+        byId("document-panel").classList.toggle("hidden", !showDocuments);
         byId("faq-tab").setAttribute("aria-selected", String(showFaq));
-        byId("sources-tab").setAttribute("aria-selected", String(!showFaq));
+        byId("sources-tab").setAttribute("aria-selected", String(showSources));
+        byId("documents-tab").setAttribute("aria-selected", String(showDocuments));
         byId("faq-tab").classList.toggle("bg-white/[.08]", showFaq);
         byId("faq-tab").classList.toggle("text-slate-100", showFaq);
         byId("faq-tab").classList.toggle("text-slate-400", !showFaq);
-        byId("sources-tab").classList.toggle("bg-white/[.08]", !showFaq);
-        byId("sources-tab").classList.toggle("text-slate-100", !showFaq);
-        byId("sources-tab").classList.toggle("text-slate-400", showFaq);
+        byId("sources-tab").classList.toggle("bg-white/[.08]", showSources);
+        byId("sources-tab").classList.toggle("text-slate-100", showSources);
+        byId("sources-tab").classList.toggle("text-slate-400", !showSources);
+        byId("documents-tab").classList.toggle("bg-white/[.08]", showDocuments);
+        byId("documents-tab").classList.toggle("text-slate-100", showDocuments);
+        byId("documents-tab").classList.toggle("text-slate-400", !showDocuments);
         byId("faq-toggle").setAttribute("aria-expanded", String(showFaq));
         byId("faq-toggle").textContent = showFaq ? "FAQ লুকান" : "FAQ দেখুন";
+      }
+
+      function closeWorkspacePanel() {
+        byId("assistant-workspace").classList.remove("workspace-open");
       }
 
       byId("login-tab").addEventListener("click", () => switchAuthTab("login"));
@@ -2205,6 +2545,11 @@
       });
       byId("faq-tab").addEventListener("click", () => setWorkspacePanel("faq"));
       byId("sources-tab").addEventListener("click", () => setWorkspacePanel("sources"));
+      byId("workspace-close").addEventListener("click", closeWorkspacePanel);
+      byId("documents-tab").addEventListener("click", () => {
+        setWorkspacePanel("documents");
+        loadDocuments();
+      });
       searchForm.addEventListener("submit", (event) => { event.preventDefault(); runSearch(); });
       searchQuery.addEventListener("input", resizeComposer);
       searchQuery.addEventListener("keydown", (event) => {
@@ -2243,6 +2588,11 @@
         byId("source-plus").setAttribute("aria-expanded", String(!expanded));
         menu.classList.toggle("hidden", expanded);
       });
+      byId("upload-document-option").addEventListener("click", () => {
+        closeAttachmentMenu();
+        setWorkspacePanel("documents");
+        byId("document-file").click();
+      });
       byId("upload-pdf-option").addEventListener("click", () => {
         closeAttachmentMenu();
         setWorkspacePanel("sources");
@@ -2260,6 +2610,32 @@
       byId("export-chat-option").addEventListener("click", downloadConversationText);
       byId("clear-chat-option").addEventListener("click", clearCurrentConversation);
       byId("source-file").addEventListener("change", (event) => uploadSource(event.target.files?.[0]));
+      byId("document-file").addEventListener("change", (event) => uploadDocuments(event.target.files));
+      byId("document-dropzone").addEventListener("click", () => byId("document-file").click());
+      byId("document-dropzone").addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          byId("document-file").click();
+        }
+      });
+      byId("document-dropzone").addEventListener("dragenter", (event) => {
+        event.preventDefault();
+        byId("document-dropzone").classList.add("drag-active");
+      });
+      byId("document-dropzone").addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      });
+      byId("document-dropzone").addEventListener("dragleave", (event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          byId("document-dropzone").classList.remove("drag-active");
+        }
+      });
+      byId("document-dropzone").addEventListener("drop", (event) => {
+        event.preventDefault();
+        byId("document-dropzone").classList.remove("drag-active");
+        uploadDocuments(event.dataTransfer.files);
+      });
       document.addEventListener("click", (event) => {
         if (
           event.target instanceof Node
@@ -2268,10 +2644,23 @@
         ) {
           closeAttachmentMenu();
         }
+        if (
+          event.target instanceof Node
+          && byId("assistant-workspace").classList.contains("workspace-open")
+          && !byId("workspace-side-panel").contains(event.target)
+          && !byId("attachment-menu").contains(event.target)
+          && !byId("source-plus").contains(event.target)
+          && !byId("faq-toggle").contains(event.target)
+          && !byId("document-file").contains(event.target)
+          && !byId("source-file").contains(event.target)
+        ) {
+          closeWorkspacePanel();
+        }
       });
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           closeAttachmentMenu();
+          closeWorkspacePanel();
         }
       });
       byId("draft-close").addEventListener("click", () => draftModal.close());
