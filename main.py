@@ -84,9 +84,127 @@ CHAT_INTENTS = (
 )
 SEARCH_STOPWORDS = {
     "আমি", "আমার", "আপনি", "কি", "কী", "কেন", "কিভাবে", "কীভাবে", "কত",
-    "হবে", "হয়", "হয়", "করলে", "করিবার", "করে", "করতে", "কোন", "কোনো",
-    "জন্য", "সম্পর্কে", "নিয়ম", "নিয়ম", "আইন", "ধারা",
+    "হবে", "হয়", "হয়", "করলে", "করিবার", "করে", "করতে", "করব", "করবো",
+    "করণীয়", "করণীয়", "অনুযায়ী", "অনুযায়ী", "কোন", "কোনো", "জন্য",
+    "সম্পর্কে", "নিয়ম", "নিয়ম", "আইন", "ধারা", "বলুন", "পারে", "পাবো",
 }
+GENERIC_RELEVANCE_TERMS = {
+    "শ্রম", "শ্রমিক", "কর্মচারী", "ভোক্তা", "পণ্য", "সাইবার", "অনলাইন",
+    "ইন্টারনেট", "আইডি", "আইন", "আইনের", "বাংলাদেশ", "ধারা", "হিসাব",
+    "করনীয়", "করণীয়", "করণীয়", "ব্যবস্থা", "কীভাবে", "কিভাবে",
+    "দণ্ড", "দন্ড", "শাস্তি", "জরিমানা", "penalty", "punishment", "fine",
+}
+TOPIC_RELEVANCE_RULES = (
+    (
+        "overtime",
+        ("ওভারটাইম", "অধিকাল", "overtime", "extra hours", "অতিরিক্ত কাজ"),
+        ("অধিকাল", "ওভারটাইম", "overtime"),
+    ),
+    (
+        "expired_product",
+        ("মেয়াদোত্তীর্ণ", "মেয়াদোত্তীর্ণ", "মেয়াদ উত্তীর্ণ", "মেয়াদ উত্তীর্ণ", "expired"),
+        ("মেয়াদোত্তীর্ণ", "মেয়াদোত্তীর্ণ", "মেয়াদ উত্তীর্ণ", "মেয়াদ উত্তীর্ণ", "expired"),
+    ),
+    (
+        "cyber_fraud",
+        ("প্রতারণা", "প্রতারিত", "fraud", "scam", "phishing"),
+        ("প্রতারণা", "fraud", "scam", "phishing"),
+    ),
+    (
+        "cyber_hacking",
+        ("হ্যাক", "অননুমোদিত প্রবেশ", "অনুপ্রবেশ", "hack", "hacking", "unauthorized access"),
+        ("হ্যাক", "অননুমোদিত প্রবেশ", "অনুপ্রবেশ", "hack", "unauthorized access"),
+    ),
+    (
+        "cyber_blackmail",
+        ("ব্ল্যাকমেইল", "সেক্সটর্শন", "রিভেঞ্জ পর্ন", "যৌন হয়রানি", "যৌন হয়রানি", "blackmail", "sextortion"),
+        ("ব্ল্যাকমেইল", "সেক্সটর্শন", "রিভেঞ্জ পর্ন", "যৌন হয়রানি", "যৌন হয়রানি", "blackmail", "sextortion"),
+    ),
+    (
+        "consumer_adulteration",
+        ("ভেজাল", "adulterat"),
+        ("ভেজাল", "adulterat"),
+    ),
+    (
+        "counterfeit_product",
+        ("নকল পণ্য", "counterfeit", "fake product"),
+        ("নকল পণ্য", "counterfeit", "fake product"),
+    ),
+    (
+        "overpricing",
+        ("অধিক মূল্যে", "বেশি দাম", "অতিরিক্ত দাম", "overprice", "overcharge"),
+        ("মূল্যের অধিক", "অধিক মূল্যে", "বেশি দাম", "overprice", "overcharge"),
+    ),
+    (
+        "unpaid_wages",
+        ("বকেয়া মজুরি", "বকেয়া বেতন", "মজুরি দেয়নি", "বেতন দেয়নি", "unpaid wage", "unpaid salary"),
+        ("বকেয়া মজুরি", "বকেয়া বেতন", "মজুরি", "বেতন", "unpaid wage", "unpaid salary"),
+    ),
+    (
+        "termination",
+        ("চাকরিচ্যুত", "বরখাস্ত", "চাকুরি হইতে অপসারণ", "termination", "dismissal"),
+        ("চাকরিচ্যুত", "বরখাস্ত", "চাকুরি হইতে অপসারণ", "termination", "dismissal"),
+    ),
+    (
+        "workplace_accident",
+        ("কর্মস্থলের দুর্ঘটনা", "শ্রমিকের দুর্ঘটনা", "workplace accident"),
+        ("দুর্ঘটনা", "accident"),
+    ),
+    (
+        "maternity",
+        ("মাতৃত্ব", "প্রসূতি", "maternity"),
+        ("মাতৃত্ব", "প্রসূতি", "maternity"),
+    ),
+    (
+        "appeal",
+        ("আপিল", "আপীল", "appeal"),
+        ("আপিল", "আপীল", "appeal"),
+    ),
+    (
+        "civil_remedy",
+        ("প্রতিকার", "ক্ষতিপূরণ", "দেওয়ানি", "দেওয়ানি", "civil remedy", "compensation"),
+        ("প্রতিকার", "ক্ষতিপূরণ", "দেওয়ানি", "দেওয়ানি", "civil remedy", "compensation"),
+    ),
+)
+PROCEDURE_SECTION_MARKERS = (
+    "মামলা দায়ের",
+    "মামলা দায়ের",
+    "অভিযোগ দায়ের",
+    "অভিযোগ দায়ের",
+    "শ্রম আদালতে দরখাস্ত",
+    "দেওয়ানী প্রতিকার",
+    "দেওয়ানী প্রতিকার",
+)
+SECTION_SCOPE_REQUIREMENTS = {
+    ("cyber_law", "17"): (
+        "গুরুত্বপূর্ণ তথ্য পরিকাঠামো",
+        "গুরুত্বপূর্ণ তথ্য অবকাঠামো",
+        "critical information infrastructure",
+        "critical infrastructure",
+        "cii",
+    ),
+}
+ACTION_INTENT_MARKERS = (
+    "করণীয়",
+    "করণীয়",
+    "কি করব",
+    "কী করব",
+    "কি করবো",
+    "কী করবো",
+    "কী পদক্ষেপ",
+    "কোন পদক্ষেপ",
+    "অভিযোগ",
+    "আইনি নোটিশ",
+    "প্রতিকার",
+    "what should i do",
+    "what can i do",
+    "how do i file",
+    "how to complain",
+    "what steps",
+    "legal notice",
+    "complaint",
+    "remedy",
+)
 
 _vector_collection = None
 _vector_collection_lock = threading.Lock()
@@ -269,6 +387,8 @@ def _require_user(user_id: int) -> str:
 
 def _normalized_legal_status(value: object) -> str:
     source = str(value or "").lower()
+    if not source.strip():
+        return "Unknown"
     if any(term in source for term in ("repeal", "বিলুপ্ত", "রহিত")):
         return "Repealed"
     if any(term in source for term in ("amend", "সংশোধ")):
@@ -300,7 +420,15 @@ def _search_terms(text: str) -> set[str]:
     for token in re.findall(r"[\u0980-\u09FF]+|[a-z0-9]+", normalized):
         if token in SEARCH_STOPWORDS:
             continue
-        if token.startswith("পণ্য"):
+        if token in {"ওভারটাইম", "overtime"}:
+            token = "অধিকাল"
+        elif token in {"হ্যাকিং", "হ্যাক", "হ্যাকড"}:
+            token = "হ্যাক"
+        elif token in {"প্রতারণার", "প্রতারণায়", "প্রতারণায়"}:
+            token = "প্রতারণা"
+        elif token in {"অনলাইনে", "অনলাইন"}:
+            token = "অনলাইন"
+        elif token.startswith("পণ্য"):
             token = "পণ্য"
         elif token.startswith("বিক্র"):
             token = "বিক্রয়"
@@ -312,6 +440,113 @@ def _search_terms(text: str) -> set[str]:
 
 def _title_relevance(query: str, section_title: object) -> int:
     return len(_search_terms(query) & _search_terms(str(section_title or "")))
+
+
+def _requests_action_plan(query: str) -> bool:
+    normalized = re.sub(r"\s+", " ", query.casefold())
+    return any(marker in normalized for marker in ACTION_INTENT_MARKERS)
+
+
+def _section_scope_matches(statute: dict[str, Any], query: str) -> bool:
+    section_match = re.match(
+        r"[০-৯0-9]+", str(statute.get("section_number") or "")
+    )
+    if section_match is None:
+        return False
+    section_number = section_match.group().translate(BENGALI_DIGITS)
+    requirements = SECTION_SCOPE_REQUIREMENTS.get(
+        (str(statute.get("domain") or ""), section_number)
+    )
+    if requirements is None:
+        return True
+    normalized_query = query.casefold()
+    return any(marker in normalized_query for marker in requirements)
+
+
+def _select_relevant_statutes(
+    query: str, statutes: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    normalized_query = re.sub(r"\s+", " ", query.casefold())
+    matched_rules = [
+        (name, statute_markers)
+        for name, query_markers, statute_markers in TOPIC_RELEVANCE_RULES
+        if any(marker in normalized_query for marker in query_markers)
+    ]
+    explicit_section = re.search(r"ধারা\s*([০-৯0-9]+)", query)
+    if explicit_section:
+        requested_number = int(explicit_section.group(1).translate(BENGALI_DIGITS))
+        exact = [
+            statute
+            for statute in statutes
+            if (match := re.match(r"[০-৯0-9]+", str(statute.get("section_number") or "")))
+            and int(match.group().translate(BENGALI_DIGITS)) == requested_number
+        ]
+        if exact:
+            for _, markers in matched_rules:
+                if not any(
+                    any(
+                        marker in str(statute.get("section_title") or "").casefold()
+                        for marker in markers
+                    )
+                    for statute in exact
+                ):
+                    return []
+            return exact
+        return []
+
+    if matched_rules:
+        topic_matches: dict[str, list[dict[str, Any]]] = {
+            name: [] for name, _ in matched_rules
+        }
+        for statute in statutes:
+            title = str(statute.get("section_title") or "").casefold()
+            if not _section_scope_matches(statute, query):
+                continue
+            for name, statute_markers in matched_rules:
+                if any(marker in title for marker in statute_markers):
+                    topic_matches[name].append(statute)
+        if any(not matches for matches in topic_matches.values()):
+            return []
+        selected: list[dict[str, Any]] = []
+        for matches in topic_matches.values():
+            for statute in matches:
+                if statute not in selected:
+                    selected.append(statute)
+        if _requests_action_plan(query):
+            for statute in statutes:
+                title = str(statute.get("section_title") or "").casefold()
+                if (
+                    any(marker in title for marker in PROCEDURE_SECTION_MARKERS)
+                    and not any(marker in title for marker in ("মিথ্যা", "false"))
+                    and statute not in selected
+                ):
+                    selected.append(statute)
+        return selected
+
+    query_terms = _search_terms(query) - GENERIC_RELEVANCE_TERMS
+    if not query_terms:
+        return []
+    selected_with_scores: list[tuple[int, int, float, dict[str, Any]]] = []
+    for statute in statutes:
+        if not _section_scope_matches(statute, query):
+            continue
+        title_terms = _search_terms(str(statute.get("section_title") or ""))
+        content_terms = _search_terms(str(statute.get("content") or ""))
+        title_hits = len(query_terms & title_terms)
+        content_hits = len(query_terms & content_terms)
+        if title_hits >= 2 or (title_hits >= 1 and content_hits >= 1):
+            selected_with_scores.append(
+                (
+                    title_hits,
+                    content_hits,
+                    float(statute.get("confidence") or 0.0),
+                    statute,
+                )
+            )
+    selected_with_scores.sort(
+        key=lambda item: (-item[0], -item[1], -item[2])
+    )
+    return [item[3] for item in selected_with_scores]
 
 
 def _out_of_scope(request: SearchRequest, query: str) -> dict[str, object]:
@@ -326,6 +561,34 @@ def _out_of_scope(request: SearchRequest, query: str) -> dict[str, object]:
         "status": "out_of_scope",
         "heading": "এই বিষয়ে কোনো তথ্য নেই",
         "message": OUT_OF_SCOPE_MESSAGE,
+        "results": [],
+    }
+
+
+def _needs_verification(
+    request: SearchRequest, query: str, source_only: bool = False
+) -> dict[str, object]:
+    message = (
+        "আপলোড করা PDF-এ প্রশ্নটির সঙ্গে মেলে এমন পাঠ্যাংশ পাওয়া যায়নি। "
+        "তাই PDF-ভিত্তিক বিশ্লেষণ অনুমান করে তৈরি করা হয়নি। নির্দিষ্ট পৃষ্ঠা বা "
+        "বিষয় উল্লেখ করে আবার চেষ্টা করুন।"
+        if source_only
+        else "প্রশ্নের প্রতিটি আইনি বিষয়কে সমর্থন করে এমন পর্যাপ্ত নির্দিষ্ট ধারা "
+        "পাওয়া যায়নি। অনুমানভিত্তিক উত্তর দেওয়া হয়নি। প্রশ্নটি একটি বিষয়, "
+        "ঘটনার প্রয়োজনীয় তথ্য এবং প্রযোজ্য আইন উল্লেখ করে আবার লিখুন; মূল আইন "
+        "বা আইনজীবীর মাধ্যমে যাচাই করুন।"
+    )
+    log_audit_trail(
+        request.user_id,
+        query,
+        "যথেষ্ট প্রাসঙ্গিক আইনি প্রমাণ পাওয়া যায়নি",
+        "Needs Verification",
+        message,
+    )
+    return {
+        "status": "needs_verification",
+        "heading": "আরও যাচাই প্রয়োজন",
+        "message": message,
         "results": [],
     }
 
@@ -483,7 +746,17 @@ def _run_search(
         return _out_of_scope(request, query)
 
     ranked_results.sort(key=lambda candidate: (-candidate[0], candidate[1]))
-    results = [candidate[2] for candidate in ranked_results[: request.top_k]]
+    candidates = [candidate[2] for candidate in ranked_results]
+    relevant_results = _select_relevant_statutes(query, candidates)
+    if not relevant_results:
+        return _needs_verification(request, query)
+    if (
+        request.domain == "all"
+        and re.search(r"ধারা\s*[০-৯0-9]+", query)
+        and len({str(item.get("domain") or "") for item in relevant_results}) > 1
+    ):
+        return _needs_verification(request, query)
+    results = relevant_results[: request.top_k]
     confidence = float(results[0]["confidence"])
     if request.user_id is not None and log_success:
         top = results[0]
@@ -603,10 +876,25 @@ def api_search(request: SearchRequest) -> dict[str, object]:
     if result.get("status") != "success":
         return result
     results = result.get("results") or []
-    analysis = build_case_action_plan(request.query, results)
-    result.update(analysis)
     if request.user_id is not None:
-        _audit_case_analysis(request.user_id, request.query, analysis)
+        if _requests_action_plan(request.query):
+            analysis = build_case_action_plan(request.query, results)
+            result.update(analysis)
+            _audit_case_analysis(request.user_id, request.query, analysis)
+        else:
+            top = results[0]
+            log_audit_trail(
+                request.user_id,
+                request.query,
+                " | ".join(
+                    f"ধারা {item.get('section_number')}: {item.get('section_title')}"
+                    for item in results
+                ),
+                str(top.get("legal_status") or "Unknown"),
+                str(top.get("content") or ""),
+            )
+    elif _requests_action_plan(request.query):
+        result.update(build_case_action_plan(request.query, results))
     return result
 
 
@@ -781,6 +1069,17 @@ def api_analyze_case(request: CaseAnalysisRequest) -> dict[str, object]:
             )
         chunks = json.loads(str(source["chunks_json"]))
         source_summary = summarize_source(chunks, request.query)
+        if not source_summary:
+            return _needs_verification(
+                SearchRequest(
+                    query=request.query,
+                    domain=request.domain,
+                    top_k=request.top_k,
+                    user_id=request.user_id,
+                ),
+                request.query,
+                source_only=True,
+            )
         source_context = "\n".join(
             f"{item['citation']}: {item['excerpt']}" for item in source_summary
         )

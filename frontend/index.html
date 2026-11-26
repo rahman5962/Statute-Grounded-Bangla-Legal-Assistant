@@ -1157,7 +1157,8 @@
           const title = makeText("h3", "min-w-0 break-words whitespace-normal text-lg font-semibold leading-snug text-white", `ধারা ${result.section_number || "—"}: ${result.section_title || "আইনি বিধান"}`);
           identity.append(badges, title);
           const status = makeText("span", `w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(result.legal_status)}`, result.legal_status || "Active");
-          const match = makeText("span", "w-fit shrink-0 rounded-full border border-mint/20 bg-mint/[.06] px-3 py-1 text-xs font-semibold text-mint", `মিল ${result.confidence ?? 0}%`);
+          const match = makeText("span", "w-fit shrink-0 rounded-full border border-mint/20 bg-mint/[.06] px-3 py-1 text-xs font-semibold text-mint", `সার্চ সাদৃশ্য ${result.confidence ?? 0}%`);
+          match.title = "এটি ভেক্টর অনুসন্ধানের সাদৃশ্য স্কোর; আইনি নির্ভুলতার শতাংশ নয়।";
           const badgesMeta = document.createElement("div");
           badgesMeta.className = "flex shrink-0 flex-wrap gap-2";
           badgesMeta.append(status, match);
@@ -1182,7 +1183,7 @@
           score.className = "min-w-36";
           const scoreLabels = document.createElement("div");
           scoreLabels.className = "mb-1 flex justify-between text-[11px]";
-          scoreLabels.append(makeText("span", "text-slate-500", "প্রাসঙ্গিকতা"), makeText("span", "font-semibold text-mint", `${result.confidence ?? 0}%`));
+          scoreLabels.append(makeText("span", "text-slate-500", "সার্চ সাদৃশ্য"), makeText("span", "font-semibold text-mint", `${result.confidence ?? 0}%`));
           const track = document.createElement("div");
           track.className = "h-1.5 overflow-hidden rounded-full bg-slate-700/70";
           const bar = document.createElement("div");
@@ -1485,11 +1486,11 @@
 
         if (result.status === "chat") {
           bubble.append(makeText("p", "break-words whitespace-normal text-sm leading-7 text-slate-200", result.message || "আমি আইনসাথী। আপনার আইনি প্রশ্নটি লিখুন।"));
-        } else if (result.status === "out_of_scope" || result.status === "rejected") {
+        } else if (result.status === "out_of_scope" || result.status === "rejected" || result.status === "needs_verification") {
           const notice = document.createElement("div");
           notice.className = "min-w-0 break-words whitespace-normal overflow-hidden rounded-xl border border-amber-300/25 bg-amber-300/[.07] p-4";
           notice.append(
-            makeText("p", "font-semibold text-amber-100", "এই বিষয়ে কোনো তথ্য নেই"),
+            makeText("p", "font-semibold text-amber-100", result.status === "needs_verification" ? "আরও যাচাই প্রয়োজন" : "এই বিষয়ে কোনো তথ্য নেই"),
             makeText("p", "mt-1 break-words whitespace-normal text-sm leading-6 text-amber-50/90", result.message || "দুঃখিত, সংকলিত আইনি ধারায় এই প্রশ্নের বিষয়ে কোনো তথ্য পাওয়া যায়নি।")
           );
           bubble.append(notice);

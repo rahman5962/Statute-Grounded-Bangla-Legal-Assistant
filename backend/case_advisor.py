@@ -6,39 +6,22 @@ import re
 from typing import Any
 
 
-CRIMINAL_MARKERS = (
-    "কারাদণ্ড", "কারাদন্ড", "অর্থদণ্ড", "অর্থদন্ড", "দণ্ড", "দন্ড",
-    "জরিমানা", "শাস্তি", "অপরাধ", "আমলযোগ্য", "জামিন", "ম্যাজিস্ট্রেট",
-    "imprisonment", "punishable", "penalty", "fine", "offence", "offense",
+PROCEDURE_TITLE_MARKERS = (
+    "মামলা দায়ের",
+    "মামলা দায়ের",
+    "অভিযোগ দায়ের",
+    "অভিযোগ দায়ের",
+    "শ্রম আদালতে দরখাস্ত",
+    "দেওয়ানী প্রতিকার",
+    "দেওয়ানী প্রতিকার",
 )
-CIVIL_MARKERS = (
-    "ক্ষতিপূরণ", "বকেয়া মজুরি", "বকেয়া বেতন", "মজুরি", "বেতন", "ছুটি",
-    "চাকুরী", "চাকরি", "আপীল", "আপিল", "appeal", "compensation",
-    "recovery", "administrative",
+TERMINATION_MARKERS = ("চাকরিচ্যুত", "বরখাস্ত", "termination", "dismissal")
+FINANCIAL_LOSS_MARKERS = (
+    "প্রতারণা", "লেনদেন", "অর্থ", "fraud", "scam", "transaction",
 )
-FORUM_MARKERS = (
-    "শ্রম আদালত", "সাইবার ট্রাইব্যুনাল", "ট্রাইব্যুনাল", "ম্যাজিস্ট্রেট",
-    "অধিদপ্তর", "মহাপরিচালক", "পরিদর্শক", "court", "tribunal", "authority",
+ACCOUNT_ACCESS_MARKERS = (
+    "হ্যাক", "অননুমোদিত প্রবেশ", "আইডি", "account hacked", "unauthorized access",
 )
-LIMIT_MARKERS = (
-    "তামাদি", "সময়সীমা", "সময়সীমা", "দিনের মধ্যে", "বৎসরের মধ্যে",
-    "আপীল", "আপিল", "appeal", "limitation", "within",
-)
-
-EVIDENCE_BY_DOMAIN = {
-    "labour_law": (
-        "নিয়োগপত্র/চাকরির চুক্তি, পরিচয়পত্র, বেতন স্লিপ, হাজিরা বা কর্মঘণ্টার নথি, "
-        "চাকরিচ্যুতির নোটিশ এবং সংশ্লিষ্ট লিখিত যোগাযোগ।",
-    ),
-    "consumer_rights": (
-        "ক্রয়ের রসিদ/লেনদেনের প্রমাণ, পণ্যের প্যাকেট ও ব্যাচ নম্বর, মেয়াদ/মূল্য "
-        "দেখা যায় এমন ছবি এবং বিক্রেতার সঙ্গে যোগাযোগের নথি।",
-    ),
-    "cyber_law": (
-        "মূল URL/অ্যাকাউন্ট আইডি, তারিখ-সময়সহ স্ক্রিনশট, লেনদেন/প্ল্যাটফর্ম "
-        "রেকর্ড এবং প্রাসঙ্গিক ইমেইল বা বার্তা।",
-    ),
-}
 
 
 def _normalize(text: str) -> str:
@@ -60,38 +43,31 @@ def _citation_ref(statute: dict[str, Any]) -> str:
     return f"ধারা {statute.get('section_number', '—')}"
 
 
-def _exact_excerpt(
-    statutes: list[dict[str, Any]], markers: tuple[str, ...], limit: int = 2
-) -> list[dict[str, str]]:
-    excerpts: list[dict[str, str]] = []
-    for statute in statutes:
-        content = str(statute.get("content") or "")
-        for sentence in re.split(r"(?<=[।.!?])\s+|\n+", content):
-            clean_sentence = sentence.strip()
-            if clean_sentence and any(
-                _has_marker(clean_sentence, marker) for marker in markers
-            ):
-                excerpts.append(
-                    {
-                        "statute_ref": _citation_ref(statute),
-                        "excerpt": clean_sentence[:420],
-                    }
-                )
-                break
-        if len(excerpts) >= limit:
-            break
-    return excerpts
-
-
 def summarize_source(
     chunks: list[dict[str, Any]], query: str, limit: int = 3
 ) -> list[dict[str, Any]]:
     """Select exact, page-labelled excerpts using deterministic term overlap."""
+    ignored_tokens = {
+        "এই", "সেই", "নথি", "নথিতে", "অনুযায়ী", "অনুযায়ী", "কী", "কি",
+        "করণীয়", "করণীয়", "কীভাবে", "কিভাবে", "বলুন", "জানতে", "পারি",
+    }
     query_tokens = {
         token
         for token in re.findall(r"[\u0980-\u09FF]+|[a-z0-9]+", _normalize(query))
-        if len(token) > 2
+        if len(token) > 2 and token not in ignored_tokens
     }
+    token_aliases = {
+        "প্রতারণা": "fraud",
+        "প্রতারণার": "fraud",
+        "সাইবার": "cyber",
+        "অনলাইন": "online",
+        "অনলাইনে": "online",
+        "ওভারটাইম": "overtime",
+        "অধিকাল": "overtime",
+        "হ্যাক": "hack",
+        "হ্যাকিং": "hack",
+    }
+    query_tokens = {token_aliases.get(token, token) for token in query_tokens}
     best_by_page: dict[int, tuple[int, str]] = {}
     for chunk in chunks:
         text = str(chunk.get("text") or "").strip()
@@ -101,7 +77,10 @@ def summarize_source(
         tokens = set(
             re.findall(r"[\u0980-\u09FF]+|[a-z0-9]+", _normalize(text))
         )
+        tokens = {token_aliases.get(token, token) for token in tokens}
         score = len(query_tokens & tokens)
+        if score == 0:
+            continue
         current = best_by_page.get(page_number)
         if current is None or score > current[0]:
             best_by_page[page_number] = (score, text)
@@ -120,6 +99,51 @@ def summarize_source(
     ]
 
 
+def _required_documents(domain: str, query: str) -> list[str]:
+    normalized_query = _normalize(query)
+    if domain == "labour_law":
+        documents = [
+            "নিয়োগপত্র/চাকরির চুক্তি এবং পরিচয়পত্র, যদি থাকে।",
+            "বেতন স্লিপ/বেতন রেজিস্টার এবং হাজিরা বা কর্মঘণ্টার নথি।",
+        ]
+        if any(
+            _has_marker(normalized_query, marker)
+            for marker in TERMINATION_MARKERS
+        ):
+            documents.append(
+                "চাকরিচ্যুতি বা বরখাস্তের নোটিশ ও সংশ্লিষ্ট যোগাযোগ, যদি থাকে।"
+            )
+        if any(
+            _has_marker(normalized_query, marker)
+            for marker in ("ওভারটাইম", "অধিকাল")
+        ):
+            documents.append(
+                "ওভারটাইমের দিন/ঘণ্টা ও অতিরিক্ত ভাতার হিসাবের রেকর্ড, যদি থাকে।"
+            )
+        return documents
+    if domain == "consumer_rights":
+        return [
+            "ক্রয়ের রসিদ/লেনদেনের প্রমাণ, যদি থাকে।",
+            "পণ্যের প্যাকেট, ব্যাচ নম্বর, মেয়াদ ও মূল্য দেখা যায় এমন ছবি।",
+            "বিক্রেতা বা সেবাদাতার সঙ্গে যোগাযোগের নথি।",
+        ]
+    if domain == "cyber_law":
+        documents = [
+            "মূল URL/অ্যাকাউন্ট আইডি, তারিখ-সময়সহ স্ক্রিনশট এবং প্রাসঙ্গিক ইমেইল/বার্তা।",
+        ]
+        if any(_has_marker(normalized_query, marker) for marker in FINANCIAL_LOSS_MARKERS):
+            documents.append(
+                "লেনদেন/ব্যাংক/পেমেন্ট প্ল্যাটফর্মের রেকর্ড, আর্থিক ক্ষতি হয়ে থাকলে।"
+            )
+        if any(_has_marker(normalized_query, marker) for marker in ACCOUNT_ACCESS_MARKERS):
+            documents.append(
+                "লগইন সতর্কতা, পাসওয়ার্ড/অ্যাকাউন্ট পরিবর্তনের নোটিশ এবং "
+                "প্ল্যাটফর্মে করা রিপোর্ট, যদি থাকে।"
+            )
+        return documents
+    return ["ঘটনা-সংশ্লিষ্ট মূল নথি ও প্রমাণ সংরক্ষণ করুন।"]
+
+
 def build_case_action_plan(
     query: str,
     statutes: list[dict[str, Any]],
@@ -132,23 +156,15 @@ def build_case_action_plan(
     domain = str(statutes[0].get("domain") or "")
     domain_bn = str(statutes[0].get("domain_bn") or "")
     act_name = str(statutes[0].get("act_name") or domain_bn)
-    source_text = " ".join(
-        str(item.get("excerpt") or "") for item in (source_summary or [])
-    )
-    evidence_text = " ".join(
-        f"{statute.get('section_title', '')} {statute.get('content', '')}"
+    case_type = "এই অনুসন্ধান থেকে মামলার ধরন নিশ্চিত করা হয়নি"
+    procedure_sections = [
+        statute
         for statute in statutes
-    )
-    case_text = f"{query} {source_text} {evidence_text}"
-    is_criminal = any(_has_marker(case_text, marker) for marker in CRIMINAL_MARKERS)
-    is_civil = any(_has_marker(case_text, marker) for marker in CIVIL_MARKERS)
-
-    if is_criminal and is_civil:
-        case_type = "মিশ্র প্রতিকার (ফৌজদারি ও ক্ষতিপূরণমূলক)"
-    elif is_criminal:
-        case_type = "ফৌজদারি প্রতিকারযোগ্য মামলা (Criminal Proceeding)"
-    else:
-        case_type = "প্রশাসনিক ও ক্ষতিপূরণমূলক প্রতিকার"
+        if any(
+            _has_marker(str(statute.get("section_title") or ""), marker)
+            for marker in PROCEDURE_TITLE_MARKERS
+        )
+    ]
 
     citations = [
         {
@@ -162,51 +178,29 @@ def build_case_action_plan(
         }
         for statute in statutes
     ]
-    statute_refs = list(dict.fromkeys(_citation_ref(statute) for statute in statutes))
-    forum_excerpts = _exact_excerpt(statutes, FORUM_MARKERS)
-    limit_excerpts = _exact_excerpt(statutes, LIMIT_MARKERS)
-    complaint_excerpts = _exact_excerpt(
-        statutes, ("অভিযোগ", "মামলা", "অধিদপ্তর", "complaint", "proceeding")
+    procedure_refs = list(
+        dict.fromkeys(_citation_ref(statute) for statute in procedure_sections)
     )
-
     step_two = (
-        "ঘটনার তারিখ, সংশ্লিষ্ট পক্ষ এবং সংরক্ষিত প্রমাণের তালিকা দিয়ে লিখিত "
-        "অভিযোগ বা নোটিশের খসড়া তৈরি করুন।"
-        if complaint_excerpts
-        else "উদ্ধৃত ধারাগুলোতে নির্দিষ্ট অভিযোগ বা নোটিশের প্রক্রিয়া পাওয়া যায়নি। "
-        "কোন কর্তৃপক্ষের কাছে কীভাবে জানাতে হবে, তা মূল আইন বা আইনজীবীর কাছে "
-        "যাচাই করে তারপর লিখিত পদক্ষেপ নিন।"
-    )
-    if complaint_excerpts:
-        step_two += (
-            f" উদ্ধৃত {complaint_excerpts[0]['statute_ref']}-এ প্রাসঙ্গিক "
-            f"বিধান আছে: “{complaint_excerpts[0]['excerpt']}”"
+        "নির্বাচিত ধারার শিরোনামে অভিযোগ/আবেদনের বিধান আছে: "
+        + "; ".join(
+            f"{_citation_ref(statute)} ({statute.get('section_title') or 'প্রক্রিয়া'})"
+            for statute in procedure_sections
         )
-    if is_criminal:
-        step_two += " অভিযোগ গ্রহণ, এজাহার/জিডি বা তাৎক্ষণিক গ্রেপ্তারের যোগ্যতা উদ্ধৃত ধারায় স্পষ্ট না থাকলে তা ধরে নেবেন না; আইনজীবী বা সংশ্লিষ্ট কর্তৃপক্ষের কাছে যাচাই করুন।"
+        + "। ঘটনার সঙ্গে কোন শর্তটি মেলে তা মূল ধারার পূর্ণ পাঠ যাচাই করে নিশ্চিত করুন; "
+        "শুধু শিরোনাম দেখে অভিযোগ গ্রহণ বা ফল নিশ্চিত ধরে নেবেন না।"
+        if procedure_sections
+        else "নির্বাচিত ধারাগুলো থেকে অভিযোগ বা নোটিশের সুনির্দিষ্ট পদ্ধতি নিশ্চিত করা যায়নি। "
+        "কোনো নির্দিষ্ট কর্তৃপক্ষ বা প্রক্রিয়া অনুমান না করে মূল আইন/আইনজীবীর সঙ্গে যাচাই করুন।"
+    )
     step_three = (
-        f"উদ্ধৃত ধারায় ফৌজদারি দণ্ডের ইঙ্গিত আছে। "
-        if is_criminal
-        else "উদ্ধৃত ধারাগুলো প্রতিকার/দায় নির্ধারণে প্রাসঙ্গিক। "
+        "এই অনুসন্ধানের নির্বাচিত ধারাগুলো থেকে আপনার ঘটনার জন্য নির্দিষ্ট কর্তৃপক্ষ, "
+        "আদালত বা ট্রাইব্যুনাল নিশ্চিত করা হয়নি। পদক্ষেপের আগে মূল আইন ও সংশ্লিষ্ট "
+        "কর্তৃপক্ষ/আইনজীবীর কাছে যাচাই করুন।"
     )
-    if forum_excerpts:
-        step_three += (
-            f"উপযুক্ত ফোরাম সম্পর্কে প্রাপ্ত নির্দিষ্ট পাঠ: "
-            f"“{forum_excerpts[0]['excerpt']}” ({forum_excerpts[0]['statute_ref']}). "
-            "শুধু এই উদ্ধৃত বিধানের পরিসরে প্রযোজ্য ফোরাম নিশ্চিত করুন।"
-        )
-    else:
-        step_three += (
-            "প্রাপ্ত ধারাগুলোতে নির্দিষ্ট আদালত/ট্রাইব্যুনাল বা জামিনযোগ্যতা "
-            "স্পষ্টভাবে পাওয়া যায়নি; কোনো ফোরাম বা প্রক্রিয়া ধরে না নিয়ে "
-            "আইনজীবী/সংশ্লিষ্ট কর্তৃপক্ষের কাছে নিশ্চিত করুন।"
-        )
     step_four = (
-        f"উদ্ধৃত সময়সীমা/আপিল সংক্রান্ত পাঠ: “{limit_excerpts[0]['excerpt']}” "
-        f"({limit_excerpts[0]['statute_ref']})."
-        if limit_excerpts
-        else "এই ফলাফলে নির্দিষ্ট তামাদি, সময়সীমা বা আপিল-সময়সীমা পাওয়া যায়নি। "
-        "সময়সীমা অনুমান না করে মূল আইন ও কর্তৃপক্ষের কাছ থেকে যাচাই করুন।"
+        "নির্বাচিত ধারাগুলো থেকে নির্দিষ্ট তামাদি, আপিল বা অন্য কোনো সময়সীমা নিশ্চিত "
+        "করা হয়নি। সময়সীমা অনুমান না করে মূল আইন বা আইনজীবীর কাছে দ্রুত যাচাই করুন।"
     )
 
     source_note = ""
@@ -218,40 +212,31 @@ def build_case_action_plan(
         source_note = (
             f" নির্বাচিত PDF-এর {pages} থেকে প্রাপ্ত উদ্ধৃতিগুলোও বিবেচনায় নিন।"
         )
-    step_one = (
-        EVIDENCE_BY_DOMAIN.get(domain, ("ঘটনা-সংশ্লিষ্ট মূল নথি সংরক্ষণ করুন.",))[0]
-        + source_note
-    )
+    step_one = " ".join(_required_documents(domain, query)) + source_note
     plan = [
         {
             "step_number": 1,
             "title": "প্রাথমিক তথ্য ও প্রমাণ সংরক্ষণ",
             "description": step_one,
-            "statute_ref": statute_refs,
+            "statute_ref": [],
         },
         {
             "step_number": 2,
             "title": "অভিযোগ / আইনি নোটিশ প্রস্তুত",
             "description": step_two,
-            "statute_ref": [
-                item["statute_ref"] for item in complaint_excerpts
-            ] or statute_refs,
+            "statute_ref": procedure_refs,
         },
         {
             "step_number": 3,
             "title": "উপযুক্ত কর্তৃপক্ষ ও বিচারিক প্রক্রিয়া যাচাই",
             "description": step_three,
-            "statute_ref": [
-                item["statute_ref"] for item in forum_excerpts
-            ] or statute_refs,
+            "statute_ref": [],
         },
         {
             "step_number": 4,
             "title": "সময়সীমা, প্রতিকার ও আপিল যাচাই",
             "description": step_four,
-            "statute_ref": [
-                item["statute_ref"] for item in limit_excerpts
-            ] or statute_refs,
+            "statute_ref": [],
         },
     ]
     return {
@@ -261,10 +246,10 @@ def build_case_action_plan(
         "source_summary": source_summary or [],
         "statute_citations": citations,
         "step_by_step_plan": plan,
-        "required_documents": list(EVIDENCE_BY_DOMAIN.get(domain, ())),
+        "required_documents": _required_documents(domain, query),
         "disclaimer": (
-            "এই পদক্ষেপ-তালিকা কেবল প্রদর্শিত PDF উদ্ধৃতি ও সংকলিত ধারার "
-            "ভিত্তিতে তৈরি। উদ্ধৃত পাঠে অনুল্লিখিত আদালত, সময়সীমা বা প্রক্রিয়া "
-            "অনুমান করা হয়নি; পদক্ষেপ নেওয়ার আগে আইনজীবী/কর্তৃপক্ষের কাছে যাচাই করুন।"
+            "এই পরিকল্পনা একটি সহায়ক তালিকা, আইনি মতামত নয়। প্রদর্শিত ধারার বাইরে "
+            "কোনো কর্তৃপক্ষ, মামলার ধরন বা সময়সীমা অনুমান করা হয়নি। মূল আইন ও "
+            "ঘটনার তথ্য আইনজীবী/সংশ্লিষ্ট কর্তৃপক্ষের মাধ্যমে যাচাই করুন।"
         ),
     }

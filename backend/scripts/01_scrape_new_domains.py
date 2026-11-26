@@ -184,14 +184,21 @@ def parse_lines_to_chunks(
         if match and not line.startswith("("):
             sec_no = match.group(1)
             rest_text = match.group(2).strip()
-
-            # পূর্বের ধারা সেভ করা
-            save_current_section()
-
-            current_sec = sec_no
             # আগের লাইনটি যদি ছোট শিরোনাম হয় (যেমন: "সংজ্ঞা", "দণ্ড") তবে সেটি টাইটেল হিসেবে নেওয়া
             prev_line = lines[idx - 1] if idx > 0 else ""
-            if prev_line and len(prev_line) < 90 and not SECTION_RE.match(prev_line.lstrip("[")) and "অধ্যায়" not in prev_line and "অধ্যায়" not in prev_line:
+            is_title = (
+                prev_line
+                and len(prev_line) < 120
+                and not SECTION_RE.match(prev_line.lstrip("["))
+                and "অধ্যায়" not in prev_line
+                and "অধ্যায়" not in prev_line
+            )
+            while is_title and current_body and current_body[-1] == prev_line:
+                current_body.pop()
+
+            save_current_section()
+            current_sec = sec_no
+            if is_title:
                 current_title = prev_line.strip("[]।. ")
             else:
                 first_clause = re.split(r"[।—:-]", rest_text, maxsplit=1)[0].strip()
